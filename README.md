@@ -20,8 +20,8 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 **Milestone 2 — motion, tabs and glass** ✅
 
 - [x] Spring morph between the 248×46 pill and the 420×260 card
-- [x] The window grows *before* the animation and only shrinks after it settles,
-      so the pill is never clipped
+- [x] The window keeps its 420×260 footprint for its entire lifetime and is only
+      *shaped* down to the pill when collapsed — no resize, so no blink
 - [x] Hover to open (70 ms intent), 160 ms grace period before closing
 - [x] Click the header to pin, `Esc` to collapse, blur auto-collapses
 - [x] Pin and hide buttons, live clock while collapsed
@@ -38,7 +38,8 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] GPU utilisation / VRAM / temperature / power via `systeminformation` (5 s)
 - [x] Disk, battery and CPU temperature on a 15 s background loop
 - [x] 60-sample sparklines for CPU, GPU and RAM, per-metric accent colours
-- [x] Footer strip: live network rates, system-disk usage, battery + charging state
+- [x] CPU/GPU model line in the cards (`i7-13620H`, `RTX 3050 6GB`)
+- [x] Footer strip: live network rates, system-disk free space, battery + charging
 - [x] Sampling only runs while the System tab is open inside the expanded island
       (and stops when the island collapses or hides)
 - [x] Temperature is hidden when the sensor is unavailable (no admin / no OHM)
@@ -56,8 +57,8 @@ npm run dev
 - Hover it to open the card, move away to collapse.
 - Click the header (or the pin button) to keep it open; `Esc` collapses it.
 - `←` / `→` switch sections, double-click the pill to hide the island.
-- The **System** section shows live CPU/GPU/RAM cards with sparklines plus
-  network, disk and battery in the footer.
+- The **System** section shows live CPU/GPU/RAM cards with model names and
+  sparklines plus network, disk free space and battery in the footer.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
 
@@ -100,8 +101,12 @@ resources/              generated icons (committed)
   `nodeIntegration: false`.
 - The window has `movable: false` and `resizable: false`; position is derived
   from the display work area plus `topOffset`.
-- Window resizing happens in two phases (`island:set-expanded`): grow immediately,
-  shrink only after the collapse spring settles. Never call `setBounds` per frame.
+- The window is created at the expanded 420×260 footprint and never moves or
+  resizes. `island:set-expanded` only changes the window **shape**
+  (`win.setShape`): the full card while open, the 248×46 pill rect while
+  collapsed, so clicks around the pill fall through to the desktop. Resizing a
+  visible transparent window makes Windows present one stale frame at the new
+  origin (the pill jumped ~108 px for a frame and looked like a blink).
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait

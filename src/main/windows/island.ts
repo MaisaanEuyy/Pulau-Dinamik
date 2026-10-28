@@ -39,7 +39,10 @@ function resolveDisplay(displayId: number | null): Electron.Display {
 export function computeIslandBounds(): Electron.Rectangle {
   const { topOffset, displayId } = getSettings()
   const { workArea } = resolveDisplay(displayId)
-  const { width, height } = ISLAND_LAYOUT[mode]
+  // The window always keeps the expanded footprint so it never has to be
+  // resized. Resizing/moving a visible transparent window makes Windows
+  // present one stale frame at the new origin, which reads as a blink.
+  const { width, height } = ISLAND_LAYOUT.expanded
 
   return {
     width,
@@ -47,6 +50,26 @@ export function computeIslandBounds(): Electron.Rectangle {
     x: Math.round(workArea.x + (workArea.width - width) / 2),
     y: Math.round(workArea.y + topOffset)
   }
+}
+
+/** Only the pill stays interactive while collapsed — everything around it must
+ * let clicks through to the desktop. */
+function collapsedShape(): Electron.Rectangle[] {
+  const { collapsed, expanded, inset } = ISLAND_LAYOUT
+  return [
+    {
+      x: Math.round((expanded.width - collapsed.width) / 2),
+      y: inset,
+      width: collapsed.width,
+      height: collapsed.height
+    }
+  ]
+}
+
+function applyShape(): void {
+  if (process.platform !== 'win32') return
+  if (!islandWindow || islandWindow.isDestroyed()) return
+  islandWindow.setShape(mode === 'collapsed' ? collapsedShape() : [])
 }
 
 export function createIslandWindow(options: { showOnReady: boolean }): BrowserWindow {
@@ -83,6 +106,7 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setSkipTaskbar(true)
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
+  applyShape()
 
   if (!app.isPackaged) {
     win.webContents.on('console-message', (event) => {
@@ -121,8 +145,7 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
 export function setIslandMode(next: IslandMode): void {
   if (mode === next) return
   mode = next
-  if (!islandWindow || islandWindow.isDestroyed()) return
-  islandWindow.setBounds(computeIslandBounds())
+  applyShape()
 }
 
 export function showIsland(): void {

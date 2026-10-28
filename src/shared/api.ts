@@ -13,7 +13,7 @@ export interface IslandApi {
   getSettings(): Promise<Settings>
   patchSettings(patch: Partial<Settings>): Promise<Settings>
   hideIsland(): Promise<void>
-  /** Grows/shrinks the window so the animated pill never gets clipped. */
+  /** Expands the window's interactive region so the island can grow. */
   setExpanded(expanded: boolean): Promise<void>
   /** Starts the sampler if needed and returns the latest snapshot. */
   subscribeSystem(): Promise<SystemSnapshot | null>

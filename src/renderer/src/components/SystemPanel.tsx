@@ -22,6 +22,35 @@ function formatGb(bytes: number | null | undefined, digits = 1): string {
   return `${(bytes / 1024 ** 3).toFixed(digits)} GB`
 }
 
+/** Explorer truncates (176.97 GiB shows as "176 GB"), so match it exactly. */
+function formatGbFree(bytes: number | null | undefined): string {
+  if (bytes === null || bytes === undefined) return '—'
+  return `${Math.floor(bytes / 1024 ** 3)} GB free`
+}
+
+/** "13th Gen Intel Core i7-13620H" → "i7-13620H"; AMD/Intel fallbacks intact. */
+function shortCpuName(brand: string | null | undefined): string {
+  if (!brand) return ''
+  const cleaned = brand.replace(/\((R|TM)\)/gi, '').replace(/\s+/g, ' ').trim()
+  const model = cleaned.match(/((?:i[3579]|Ryzen\s+\d|Ultra\s+\d)\s*-?\s*\d{3,5}\w*)/i)
+  return model ? model[1].replace(/\s*-\s*/, '-').trim() : cleaned
+}
+
+/** "NVIDIA GeForce RTX 3050 6GB Laptop GPU" → "RTX 3050 6GB". */
+function shortGpuName(name: string | null | undefined): string {
+  if (!name) return ''
+  return name
+    .replace(/\((R|TM)\)/gi, '')
+    .replace(/^NVIDIA\s+/i, '')
+    .replace(/^AMD\s+/i, '')
+    .replace(/^Intel\s+/i, '')
+    .replace(/^GeForce\s+/i, '')
+    .replace(/\s+Laptop\s+GPU$/i, '')
+    .replace(/\s+GPU$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
 function formatPercent(value: number | null | undefined): string {
   if (value === null || value === undefined) return '—'
   return String(Math.round(clampPercent(value)))
@@ -64,11 +93,12 @@ interface StatCardProps {
   value: string
   unit?: string
   note?: string
+  sub?: string
   color: string
   history?: number[]
 }
 
-function StatCard({ label, value, unit, note, color, history }: StatCardProps) {
+function StatCard({ label, value, unit, note, sub, color, history }: StatCardProps) {
   return (
     <div className="stat-card" style={{ '--accent': color } as CSSProperties}>
       <div className="stat-head">
@@ -79,6 +109,7 @@ function StatCard({ label, value, unit, note, color, history }: StatCardProps) {
         {value}
         {unit ? <span className="stat-unit">{unit}</span> : null}
       </div>
+      {sub ? <span className="stat-sub">{sub}</span> : null}
       {history ? (
         <Sparkline values={history} color={color} />
       ) : (
@@ -127,6 +158,7 @@ export function SystemPanel({ active }: { active: boolean }) {
           value={formatPercent(cpu?.load)}
           unit={cpu ? '%' : undefined}
           note={cpu ? (cpu.tempC !== null ? `${Math.round(cpu.tempC)}°C` : `${cpu.threads} threads`) : undefined}
+          sub={shortCpuName(cpu?.brand)}
           color="#7dd3fc"
           history={snapshot?.history.cpu}
         />
@@ -135,6 +167,7 @@ export function SystemPanel({ active }: { active: boolean }) {
           value={gpuHasUtilisation ? formatPercent(gpu?.utilization) : '—'}
           unit={gpuHasUtilisation ? '%' : undefined}
           note={gpuNote}
+          sub={shortGpuName(gpu?.name)}
           color="#c4b5fd"
           history={gpuHasUtilisation ? snapshot?.history.gpu : undefined}
         />
@@ -168,7 +201,9 @@ export function SystemPanel({ active }: { active: boolean }) {
           <span className="chip-value">
             {formatPercent(diskPercent)}
             {disk ? '%' : ''}
-            {disk ? <span className="chip-sub">{formatGb(disk.usedBytes, 0)}</span> : null}
+            {disk ? (
+              <span className="chip-sub">{formatGbFree(disk.totalBytes - disk.usedBytes)}</span>
+            ) : null}
           </span>
           <span className="chip-bar" style={{ width: `${diskPercent ?? 0}%` }} />
         </div>

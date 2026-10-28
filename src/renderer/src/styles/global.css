@@ -355,6 +355,17 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+.stat-sub {
+  overflow: hidden;
+  color: rgba(226, 232, 244, 0.5);
+  font-size: 7.5px;
+  font-weight: 500;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  letter-spacing: 0.01em;
+}
+
 .stat-unit {
   margin-left: 2px;
   color: rgba(226, 232, 244, 0.45);

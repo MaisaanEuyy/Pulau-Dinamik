@@ -96,15 +96,29 @@ function runSmokeTest(win: BrowserWindow): void {
   const startedAt = Date.now()
   const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-  const center = (): { x: number; y: number } => {
-    const { width, height } = win.getBounds()
-    return { x: Math.round(width / 2), y: Math.round(height / 2) }
-  }
-
   const click = (x: number, y: number, clickCount: number): void => {
     win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount })
     win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount })
   }
+
+  /** The header spans the full width in both modes, so it is a safe click
+   * target for the collapsed pill and the expanded island alike. */
+  const headerPoint = (): { x: number; y: number } => ({
+    x: Math.round(win.getBounds().width / 2),
+    y: 22
+  })
+
+  const islandState = async (): Promise<{ expanded: boolean; pinned: boolean } | null> =>
+    (await win.webContents
+      .executeJavaScript(
+        `(() => {
+          const el = document.querySelector('.island')
+          return el
+            ? { expanded: el.dataset.expanded === 'true', pinned: el.dataset.pinned === 'true' }
+            : null
+        })()`
+      )
+      .catch(() => null)) as { expanded: boolean; pinned: boolean } | null
 
   /** Runs the sampler outside the UI and checks every collector produced data. */
   const verifySystem = async (): Promise<{
@@ -155,25 +169,26 @@ function runSmokeTest(win: BrowserWindow): void {
     }
     if (!rendererReady) return result
 
-    const pill = center()
-    win.webContents.sendInputEvent({ type: 'mouseMove', x: pill.x, y: pill.y })
-    await wait(260)
-    click(pill.x, pill.y, 1)
-    await wait(600)
-    result.clickExpands = win.getBounds().width > 350
+    const point = headerPoint()
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: point.x, y: point.y })
+    await wait(300)
+    result.clickExpands = (await islandState())?.expanded === true
+
+    click(point.x, point.y, 1)
+    await wait(250)
 
     // Pinned islands must stay open after the pointer leaves.
     win.webContents.sendInputEvent({ type: 'mouseLeave', x: 0, y: 0 })
     await wait(500)
-    result.pinHoldsOpen = win.getBounds().width > 350
+    result.pinHoldsOpen = (await islandState())?.expanded === true
 
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
-    await wait(1000)
-    result.escapeCollapses = win.getBounds().width < 300
+    await wait(600)
+    result.escapeCollapses = (await islandState())?.expanded === false
 
-    const collapsed = center()
-    click(collapsed.x, collapsed.y, 1)
-    click(collapsed.x, collapsed.y, 2)
+    const collapsedPoint = headerPoint()
+    click(collapsedPoint.x, collapsedPoint.y, 1)
+    click(collapsedPoint.x, collapsedPoint.y, 2)
     await wait(400)
     result.hideOnDoubleClick = !win.isVisible()
     if (result.hideOnDoubleClick) {

@@ -21,7 +21,8 @@ const EXPANDED_SIZE = {
   height: ISLAND_LAYOUT.expanded.height - INSET * 2
 }
 
-/** Time the window waits before shrinking, so the spring is never clipped. */
+/** Time the window waits before being shaped down to the pill, so the spring
+ * has settled and nothing gets clipped. */
 const SHRINK_DELAY_MS = 420
 
 function useClock(): string {
@@ -62,10 +63,12 @@ export function Island({ settings, info }: IslandProps) {
     return () => clearTimeout(timer)
   }, [hovered])
 
-  // The window grows *before* the spring starts and only shrinks once the
-  // animation has settled, which keeps the pill from ever being clipped.
+  // The window keeps its expanded footprint for its whole lifetime and is only
+  // *shaped* down to the pill while collapsed. Resizing a visible transparent
+  // window makes Windows show one stale frame at the new origin, which reads as
+  // a blink, so the geometry itself is never animated.
   useEffect(() => {
-    if (expanded) {
+    if (expanded || hovered) {
       void window.island.setExpanded(true)
       return
     }
@@ -74,7 +77,7 @@ export function Island({ settings, info }: IslandProps) {
       reducedMotion ? 0 : SHRINK_DELAY_MS
     )
     return () => clearTimeout(timer)
-  }, [expanded, reducedMotion])
+  }, [expanded, hovered, reducedMotion])
 
   useEffect(() => window.island.onHidden(collapse), [collapse])
 
