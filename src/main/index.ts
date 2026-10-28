@@ -10,6 +10,7 @@ import {
   hideIsland,
   markQuitting,
   repositionIsland,
+  setIslandMode,
   showIsland,
   toggleIsland
 } from './windows/island'
@@ -63,6 +64,10 @@ function registerIpc(): void {
     hideIsland()
   })
 
+  ipcMain.handle(IPC.islandSetExpanded, (_event, expanded: boolean) => {
+    setIslandMode(expanded ? 'expanded' : 'collapsed')
+  })
+
   ipcMain.handle(IPC.appInfo, () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
@@ -79,34 +84,95 @@ function registerIpc(): void {
 /** Prints diagnostics and exits. Used by `npm run smoke`. */
 function runSmokeTest(win: BrowserWindow): void {
   const startedAt = Date.now()
+  const wait = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
-  /** Fires a synthetic double-click so the test never touches the real desktop. */
-  const verifyDoubleClickHides = async (): Promise<boolean> => {
-    if (!rendererReady) return false
+  const center = (): { x: number; y: number } => {
     const { width, height } = win.getBounds()
-    const x = Math.round(width / 2)
-    const y = Math.round(height / 2)
-
-    win.webContents.sendInputEvent({ type: 'mouseMove', x, y })
-    for (const clickCount of [1, 2]) {
-      win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount })
-      win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount })
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, 400))
-    const hidden = !win.isVisible()
-    if (hidden) showIsland()
-    await new Promise((resolve) => setTimeout(resolve, 300))
-    return hidden
+    return { x: Math.round(width / 2), y: Math.round(height / 2) }
   }
 
-  const finish = (hideOnDoubleClick: boolean): void => {
+  const click = (x: number, y: number, clickCount: number): void => {
+    win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount })
+    win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount })
+  }
+
+  /** Drives the shell through hover → pin → escape → double-click hide. */
+  const verifyInteractions = async (): Promise<{
+    clickExpands: boolean
+    pinHoldsOpen: boolean
+    escapeCollapses: boolean
+    hideOnDoubleClick: boolean
+    resetOnHide: boolean
+  }> => {
+    const result = {
+      clickExpands: false,
+      pinHoldsOpen: false,
+      escapeCollapses: false,
+      hideOnDoubleClick: false,
+      resetOnHide: false
+    }
+    if (!rendererReady) return result
+
+    const pill = center()
+    win.webContents.sendInputEvent({ type: 'mouseMove', x: pill.x, y: pill.y })
+    await wait(260)
+    click(pill.x, pill.y, 1)
+    await wait(600)
+    result.clickExpands = win.getBounds().width > 350
+
+    // Pinned islands must stay open after the pointer leaves.
+    win.webContents.sendInputEvent({ type: 'mouseLeave', x: 0, y: 0 })
+    await wait(500)
+    result.pinHoldsOpen = win.getBounds().width > 350
+
+    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' })
+    await wait(1000)
+    result.escapeCollapses = win.getBounds().width < 300
+
+    const collapsed = center()
+    click(collapsed.x, collapsed.y, 1)
+    click(collapsed.x, collapsed.y, 2)
+    await wait(400)
+    result.hideOnDoubleClick = !win.isVisible()
+    if (result.hideOnDoubleClick) {
+      // Renderer state must be reset while hidden, otherwise the next show
+      // would render an expanded pill inside the collapsed window.
+      const hiddenState = (await win.webContents
+        .executeJavaScript(
+          `(() => {
+            const el = document.querySelector('.island')
+            return el ? { pinned: el.dataset.pinned, expanded: el.dataset.expanded } : null
+          })()`
+        )
+        .catch(() => null)) as { pinned?: string; expanded?: string } | null
+      result.resetOnHide = hiddenState?.pinned === 'false' && hiddenState?.expanded === 'false'
+
+      showIsland()
+      await wait(300)
+    }
+
+    return result
+  }
+
+  const finish = (interactions: {
+    clickExpands: boolean
+    pinHoldsOpen: boolean
+    escapeCollapses: boolean
+    hideOnDoubleClick: boolean
+    resetOnHide: boolean
+  }): void => {
     const bounds = win.getBounds()
     console.log(
       `[smoke] ${JSON.stringify({
-        ok: rendererReady && hideOnDoubleClick,
+        ok:
+          rendererReady &&
+          interactions.clickExpands &&
+          interactions.pinHoldsOpen &&
+          interactions.escapeCollapses &&
+          interactions.hideOnDoubleClick &&
+          interactions.resetOnHide,
         rendererReady,
-        hideOnDoubleClick,
+        ...interactions,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -128,7 +194,7 @@ function runSmokeTest(win: BrowserWindow): void {
   const timer = setInterval(() => {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
-      void verifyDoubleClickHides().then(finish)
+      void verifyInteractions().then(finish)
     }
   }, 100)
 }

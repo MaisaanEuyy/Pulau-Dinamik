@@ -16,9 +16,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Global hotkey `Ctrl+Alt+Space` to toggle the island
 - [x] Double-click the pill to hide it, `--hidden` starts quietly at login
 - [x] Persisted settings in `%APPDATA%\Dynamic Island KW\settings.json`
-- [x] `--smoke-test` diagnostics mode (window bounds, transparency, hotkey, double-click hide)
 
-Next: Milestone 2 — collapse/expand motion, tabs, glass styling.
+**Milestone 2 — motion, tabs and glass** ✅
+
+- [x] Spring morph between the 248×46 pill and the 420×260 card
+- [x] The window grows *before* the animation and only shrinks after it settles,
+      so the pill is never clipped
+- [x] Hover to open (70 ms intent), 160 ms grace period before closing
+- [x] Click the header to pin, `Esc` to collapse, blur auto-collapses
+- [x] Pin and hide buttons, live clock while collapsed
+- [x] Four sections (Media / System / Keys / Alerts) with a sliding tab indicator,
+      `←`/`→` to switch, placeholder panels for M3–M6
+- [x] Layered glass styling: specular top edge, radial sheen, inset shading
+- [x] `npm run smoke` now also checks expand, pin, Esc collapse and state reset on hide
+
+Next: Milestone 3 — system monitoring (CPU, RAM, GPU, disk, network, battery).
 
 ## Try it
 
@@ -27,9 +39,11 @@ npm run dev
 ```
 
 - The island appears centred at the top of the primary display.
-- Hover it: the subtitle switches to the current hotkey.
-- Double-click the pill to hide it; press `Ctrl+Alt+Space` (or click the tray icon) to bring it back.
-- Right-click the tray icon for display selection, launch-at-login and quit.
+- Hover it to open the card, move away to collapse.
+- Click the header (or the pin button) to keep it open; `Esc` collapses it.
+- `←` / `→` switch sections, double-click the pill to hide the island.
+- `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
+  display selection, launch-at-login and quit.
 
 Windows 11 keeps new tray icons in the overflow flyout; drag the island icon onto the
 taskbar if you want it permanently visible.
@@ -69,6 +83,10 @@ resources/              generated icons (committed)
   `nodeIntegration: false`.
 - The window has `movable: false` and `resizable: false`; position is derived
   from the display work area plus `topOffset`.
-- Placeholder menu entry “Settings…” is wired up in Milestone 2/7.
+- Window resizing happens in two phases (`island:set-expanded`): grow immediately,
+  shrink only after the collapse spring settles. Never call `setBounds` per frame.
+- No native `title` tooltips inside the island — Windows renders them as a separate
+  always-on-top window that covers the card.
+- Placeholder menu entry “Settings…” is wired up in Milestone 7.
 - If `npm install` finishes without `node_modules/electron/dist`, download the
   runtime manually: `node node_modules/electron/install.js`.

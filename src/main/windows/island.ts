@@ -1,10 +1,14 @@
 import { BrowserWindow, app, screen } from 'electron'
 import { join } from 'node:path'
+import { IPC } from '../../shared/ipc'
 import { ISLAND_LAYOUT } from '../../shared/layout'
 import { getSettings } from '../settings'
 
+export type IslandMode = 'collapsed' | 'expanded'
+
 let islandWindow: BrowserWindow | null = null
 let quitting = false
+let mode: IslandMode = 'collapsed'
 /**
  * Tracks whether the island is supposed to be on screen. A `hide()` that lands
  * before the first `ready-to-show` must win over the initial auto-show.
@@ -19,6 +23,10 @@ export function getIslandWindow(): BrowserWindow | null {
   return islandWindow
 }
 
+export function getIslandMode(): IslandMode {
+  return mode
+}
+
 /** Picks the configured display, falling back to the primary one. */
 function resolveDisplay(displayId: number | null): Electron.Display {
   if (displayId !== null) {
@@ -31,7 +39,7 @@ function resolveDisplay(displayId: number | null): Electron.Display {
 export function computeIslandBounds(): Electron.Rectangle {
   const { topOffset, displayId } = getSettings()
   const { workArea } = resolveDisplay(displayId)
-  const { width, height } = ISLAND_LAYOUT.collapsed
+  const { width, height } = ISLAND_LAYOUT[mode]
 
   return {
     width,
@@ -110,6 +118,13 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
   return win
 }
 
+export function setIslandMode(next: IslandMode): void {
+  if (mode === next) return
+  mode = next
+  if (!islandWindow || islandWindow.isDestroyed()) return
+  islandWindow.setBounds(computeIslandBounds())
+}
+
 export function showIsland(): void {
   if (!islandWindow || islandWindow.isDestroyed()) return
   visibleIntent = true
@@ -120,7 +135,10 @@ export function showIsland(): void {
 export function hideIsland(): void {
   if (!islandWindow || islandWindow.isDestroyed()) return
   visibleIntent = false
+  // Reset the renderer state first so the next show starts collapsed.
+  islandWindow.webContents.send(IPC.islandHidden)
   islandWindow.hide()
+  setIslandMode('collapsed')
 }
 
 export function toggleIsland(): void {

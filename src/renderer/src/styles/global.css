@@ -1,6 +1,8 @@
 :root {
   color-scheme: dark;
   --island-inset: 1px;
+  --header-height: 44px;
+  --tabbar-height: 32px;
 }
 
 * {
@@ -31,6 +33,11 @@ body {
   cursor: default;
 }
 
+button {
+  font: inherit;
+  color: inherit;
+}
+
 #root {
   display: flex;
   padding: var(--island-inset);
@@ -39,6 +46,8 @@ body {
 .island-root {
   display: flex;
   flex: 1 1 auto;
+  align-items: flex-start;
+  justify-content: center;
   min-width: 0;
 }
 
@@ -47,33 +56,49 @@ body {
 .island {
   position: relative;
   display: flex;
-  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 22px;
+  background:
+    radial-gradient(120% 150% at 50% -55%, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0) 58%),
+    linear-gradient(180deg, #17171b 0%, #0b0b0d 58%, #070709 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    inset 0 -24px 48px rgba(0, 0, 0, 0.35);
+  transition: border-color 180ms ease;
+}
+
+.island[data-pinned='true'] {
+  border-color: rgba(125, 211, 252, 0.26);
+}
+
+/* Specular highlight across the top edge. */
+.island::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 14%;
+  left: 14%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+/* ------------------------------------------------------------------ header */
+
+.island-header {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex: 0 0 auto;
   align-items: center;
   gap: 10px;
-  min-width: 0;
+  height: var(--header-height);
   padding: 0 13px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  border-radius: 999px;
-  background:
-    radial-gradient(130% 170% at 50% -70%, rgba(255, 255, 255, 0.11) 0%, rgba(255, 255, 255, 0) 58%),
-    linear-gradient(180deg, #17171b 0%, #0b0b0d 60%, #060608 100%);
-  box-shadow:
-    0 10px 24px rgba(0, 0, 0, 0.5),
-    0 1px 0 rgba(255, 255, 255, 0.05) inset;
-  transition:
-    border-color 160ms ease,
-    box-shadow 200ms ease;
+  cursor: pointer;
 }
-
-.island:hover {
-  border-color: rgba(255, 255, 255, 0.16);
-  box-shadow:
-    0 10px 26px rgba(0, 0, 0, 0.55),
-    0 0 0 1px rgba(255, 255, 255, 0.03),
-    0 1px 0 rgba(255, 255, 255, 0.06) inset;
-}
-
-/* -------------------------------------------------------------------- mark */
 
 .island-mark {
   position: relative;
@@ -105,8 +130,6 @@ body {
     opacity: 0;
   }
 }
-
-/* -------------------------------------------------------------------- text */
 
 .island-meta {
   display: flex;
@@ -148,6 +171,176 @@ body {
   letter-spacing: 0.02em;
   text-align: right;
   font-variant-numeric: tabular-nums;
+}
+
+/* ---------------------------------------------------------------- controls */
+
+.island-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 4px;
+}
+
+.island-btn {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(240, 243, 250, 0.68);
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease;
+}
+
+.island-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.island-btn[data-active='true'] {
+  background: rgba(125, 211, 252, 0.12);
+  color: #7dd3fc;
+}
+
+.island-btn:focus-visible,
+.tab-button:focus-visible {
+  outline: 1px solid rgba(125, 211, 252, 0.8);
+  outline-offset: 1px;
+}
+
+/* -------------------------------------------------------------------- body */
+
+.island-body {
+  position: absolute;
+  top: var(--header-height);
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px 12px 12px;
+  will-change: opacity, transform;
+}
+
+.island-content {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.tab-panel-wrap {
+  height: 100%;
+}
+
+.tab-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 100%;
+  padding: 8px 18px;
+  text-align: center;
+}
+
+.tab-panel-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(220, 230, 245, 0.8);
+}
+
+.tab-panel-title {
+  color: #eef1f8;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+
+.tab-panel-text {
+  max-width: 290px;
+  color: rgba(226, 232, 244, 0.5);
+  font-size: 10.5px;
+  line-height: 1.45;
+}
+
+.tab-panel-badge {
+  margin-top: 2px;
+  padding: 2px 8px;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 999px;
+  background: rgba(125, 211, 252, 0.08);
+  color: rgba(125, 211, 252, 0.78);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+/* ------------------------------------------------------------------ tabbar */
+
+.island-tabbar {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: var(--tabbar-height);
+}
+
+.tab-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: rgba(235, 238, 246, 0.45);
+  cursor: pointer;
+  transition:
+    color 150ms ease,
+    background 150ms ease;
+}
+
+.tab-button:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(245, 247, 252, 0.85);
+}
+
+.tab-button[data-active='true'] {
+  color: #f7f8fc;
+}
+
+.tab-button > svg {
+  position: relative;
+  z-index: 1;
+}
+
+.tab-indicator {
+  position: absolute;
+  inset: 0;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 9px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
 }
 
 @media (prefers-reduced-motion: reduce) {

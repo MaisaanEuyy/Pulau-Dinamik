@@ -4,6 +4,8 @@ export const IPC = {
   settingsPatch: 'settings:patch',
   settingsChanged: 'settings:changed',
   islandHide: 'island:hide',
+  islandSetExpanded: 'island:set-expanded',
+  islandHidden: 'island:hidden',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const
