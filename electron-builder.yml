@@ -1,0 +1,56 @@
+# Packaging for Windows (NSIS installer).
+# `npm run dist` builds the app first, then wraps it into an installer.
+appId: com.kodingan.dynamicisland # must match APP_USER_MODEL_ID in src/main/index.ts
+productName: Dynamic Island KW
+copyright: Copyright © 2026 Suparman Official
+
+directories:
+  buildResources: build
+  output: release
+
+# Only what the app needs at runtime. The two production dependencies are listed
+# explicitly so a stray dev folder can never sneak into the package.
+files:
+  - out/**/*
+  - package.json
+  - node_modules/koffi/**/*
+  - node_modules/@koromix/**/*
+  - node_modules/systeminformation/**/*
+
+# Tray icons are read from `process.resourcesPath/resources` once packaged
+# (see src/main/tray.ts), so they have to live outside the asar.
+extraResources:
+  - from: resources
+    to: resources
+
+asar: true
+# koffi keeps its native addon in @koromix/koffi-win32-x64; a .node file cannot
+# be loaded from inside an asar, so it must stay unpacked or the Keys tab dies.
+asarUnpack:
+  - node_modules/koffi/**
+  - node_modules/@koromix/**
+
+# koffi ships N-API prebuilds that already work in Electron — rebuilding them
+# would only require Visual Studio Build Tools.
+npmRebuild: false
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  icon: build/icon.png
+  # No code signing certificate: SmartScreen will ask for "More info → Run anyway".
+  signAndEditExecutable: true
+  artifactName: ${productName} Setup ${version}.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false # per-user install, no UAC prompt
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  shortcutName: Dynamic Island KW
+  uninstallDisplayName: Dynamic Island KW
+  # Keep %APPDATA%\Dynamic Island KW (settings + generated .ps1 helpers).
+  deleteAppDataOnUninstall: false
+  runAfterFinish: true

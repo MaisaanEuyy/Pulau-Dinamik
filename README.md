@@ -168,8 +168,10 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       swapped an opaque gradient for a flat colour while `background-color` faded
       in from transparent, so the white circle flashed dark for ~140 ms on every
       hover. Hover now brightens an inset shadow and never touches the background
+- [x] Packaging: `npm run dist` builds an NSIS installer (desktop + Start Menu
+      shortcut, per-user install, no admin prompt) — see **Build installer**
 
-Next: Milestone 7 — settings window and packaging.
+Next: Milestone 7 — settings window.
 
 ## Try it
 
@@ -252,9 +254,36 @@ npm run dev       # run in development (HMR for the renderer)
 npm run build     # production bundle into ./out
 npm run typecheck # type-check main/preload and renderer
 npm run smoke     # build + launch with --smoke-test, prints diagnostics and exits
+npm run dist      # type-check, build and wrap it into a Windows installer
+npm run dist:dir  # build + package into ./release/win-unpacked (no installer)
 npm run notify    # post a notification to the running island (see Notifications)
 npm run icons     # regenerate tray/app icons in ./resources
 ```
+
+## Build installer
+
+```bash
+npm run dist
+```
+
+That writes `release/Dynamic Island KW Setup 0.1.0.exe` (NSIS, x64, ~116 MB).
+Run it and the app installs per-user into
+`%LOCALAPPDATA%\Programs\Dynamic Island KW` — no admin prompt — with a desktop
+shortcut and a Start Menu entry.
+
+- The installer is unsigned, so SmartScreen shows "Windows protected your PC" the
+  first time: **More info → Run anyway**. Removing that needs a code signing
+  certificate.
+- `npm run dist:dir` stops after `release/win-unpacked`, which is the fastest way
+  to check a packaging change. Run `release\win-unpacked\Dynamic Island KW.exe`
+  and look at the tray icons, the Keys tab (Caps/Num/Scroll) and a real Windows
+  notification: those three need the tray PNGs from `extraResources` and the koffi
+  native addon from `asarUnpack`, and they stay silent if either is missing.
+- Uninstalling keeps `%APPDATA%\Dynamic Island KW` (your settings plus the
+  generated PowerShell helpers).
+- The first build downloads Electron and the NSIS tooling into
+  `%LOCALAPPDATA%\electron-builder\Cache`, so give it a few minutes and a network
+  connection.
 
 ## Layout
 
