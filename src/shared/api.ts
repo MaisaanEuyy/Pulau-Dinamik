@@ -1,6 +1,7 @@
 import type { MediaCommand, MediaState } from './media'
 import type { Settings } from './settings'
 import type { SystemSnapshot } from './system'
+import type { VolumeState } from './volume'
 
 export interface AppInfo {
   version: string
@@ -32,6 +33,8 @@ export interface IslandApi {
   onHidden(callback: () => void): () => void
   onSystemUpdate(callback: (snapshot: SystemSnapshot) => void): () => void
   onMediaUpdate(callback: (state: MediaState) => void): () => void
+  /** Fired whenever the system volume or mute state changes. */
+  onVolumeUpdate(callback: (state: VolumeState) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }

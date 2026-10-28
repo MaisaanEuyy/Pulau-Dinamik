@@ -13,6 +13,7 @@ export const IPC = {
   mediaUnsubscribe: 'media:unsubscribe',
   mediaCommand: 'media:command',
   mediaUpdate: 'media:update',
+  volumeUpdate: 'volume:update',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

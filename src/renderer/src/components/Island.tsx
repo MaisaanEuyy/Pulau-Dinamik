@@ -1,9 +1,10 @@
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
-import { Pin, X } from 'lucide-react'
+import { Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 import type { AppInfo } from '@shared/api'
 import { ISLAND_LAYOUT } from '@shared/layout'
 import type { Settings } from '@shared/settings'
+import { useVolumeHud } from '../hooks/useVolumeHud'
 import { TABS, TabPanel, type TabId } from './tabs'
 
 interface IslandProps {
@@ -43,6 +44,7 @@ export function Island({ settings, info }: IslandProps) {
   const [hoverIntent, setHoverIntent] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
   const clock = useClock()
+  const volume = useVolumeHud()
 
   const expanded = pinned || hoverIntent
 
@@ -120,6 +122,15 @@ export function Island({ settings, info }: IslandProps) {
     ? { duration: 0 }
     : { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }
 
+  const volumePercent = volume ? Math.round(volume.level * 100) : 0
+  const VolumeIcon = volume?.muted
+    ? VolumeX
+    : volume && volume.level > 0
+      ? volume.level < 0.34
+        ? Volume1
+        : Volume2
+      : Volume
+
   return (
     <motion.div
       className="island"
@@ -136,6 +147,7 @@ export function Island({ settings, info }: IslandProps) {
       onMouseLeave={() => setHovered(false)}
       onDoubleClick={() => void window.island.hideIsland()}
     >
+      <div className="island-aura" aria-hidden="true" />
       <div
         className="island-header"
         aria-label={expanded ? 'Island controls' : 'Dynamic Island'}
@@ -178,6 +190,40 @@ export function Island({ settings, info }: IslandProps) {
         ) : (
           <span className="island-clock">{clock}</span>
         )}
+
+        <AnimatePresence initial={false}>
+          {volume && (
+            <motion.div
+              className="volume-hud"
+              data-expanded={expanded}
+              data-muted={volume.muted}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.16 }}
+              aria-hidden="true"
+            >
+              <span className="volume-icon">
+                <VolumeIcon size={15} strokeWidth={2} />
+              </span>
+              <span className="volume-track">
+                <motion.span
+                  className="volume-fill"
+                  initial={false}
+                  animate={{ width: `${volume.muted ? 0 : volumePercent}%` }}
+                  transition={
+                    reducedMotion
+                      ? { duration: 0 }
+                      : { type: 'spring', stiffness: 420, damping: 34, mass: 0.6 }
+                  }
+                />
+              </span>
+              <span className="volume-value">
+                {volume.muted ? 'Muted' : `${volumePercent}%`}
+              </span>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <motion.div

@@ -3,6 +3,9 @@
   --island-inset: 1px;
   --header-height: 44px;
   --tabbar-height: 32px;
+  /* Set from the album artwork while the Media section is open. */
+  --ambient: transparent;
+  --ambient-opacity: 0;
 }
 
 * {
@@ -84,6 +87,28 @@ button {
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.32), transparent);
   opacity: 0.55;
   pointer-events: none;
+}
+
+/* Ambient glow sampled from the album artwork (Media section only). */
+.island-aura {
+  position: absolute;
+  top: -104px;
+  right: -30px;
+  left: -30px;
+  height: 196px;
+  border-radius: 50%;
+  background: var(--ambient, transparent);
+  /* Collapsed the pill only picks up a hint of the album mood. */
+  opacity: calc(var(--ambient-opacity, 0) * 0.32);
+  filter: blur(34px) saturate(140%);
+  transition:
+    background-color 900ms ease,
+    opacity 550ms ease;
+  pointer-events: none;
+}
+
+.island[data-expanded='true'] .island-aura {
+  opacity: var(--ambient-opacity, 0);
 }
 
 /* ------------------------------------------------------------------ header */
@@ -168,6 +193,73 @@ button {
   color: rgba(240, 242, 248, 0.82);
   font-size: 11.5px;
   font-weight: 550;
+  letter-spacing: 0.02em;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* -------------------------------------------------------------- volume HUD */
+
+.volume-hud {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, rgba(21, 21, 26, 0.86), rgba(8, 8, 10, 0.92));
+  backdrop-filter: blur(12px) saturate(120%);
+  pointer-events: none;
+}
+
+/* While expanded, leave the pin/close buttons reachable. */
+.volume-hud[data-expanded='true'] {
+  right: 88px;
+}
+
+.volume-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: rgba(240, 243, 250, 0.88);
+}
+
+.volume-hud[data-muted='true'] .volume-icon {
+  color: rgba(244, 164, 210, 0.9);
+}
+
+.volume-track {
+  position: relative;
+  flex: 1 1 auto;
+  height: 5px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.13);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.45);
+}
+
+.volume-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, rgba(125, 211, 252, 0.92), rgba(244, 164, 210, 0.95));
+  box-shadow: 0 0 10px rgba(125, 211, 252, 0.4);
+}
+
+.volume-hud[data-muted='true'] .volume-fill {
+  box-shadow: none;
+}
+
+.volume-value {
+  flex: 0 0 auto;
+  min-width: 38px;
+  color: rgba(242, 244, 250, 0.82);
+  font-size: 10.5px;
+  font-weight: 600;
   letter-spacing: 0.02em;
   text-align: right;
   font-variant-numeric: tabular-nums;
@@ -514,6 +606,12 @@ button {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+.media-art[data-artwork='true'] {
+  box-shadow:
+    0 8px 22px -12px var(--ambient, rgba(244, 114, 182, 0.45)),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .media-art[data-artwork='false'] {

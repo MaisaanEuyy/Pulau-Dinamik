@@ -4,6 +4,11 @@ import type { MediaCommand, MediaState } from '../shared/media'
 import type { Settings } from '../shared/settings'
 import { syncLoginItem, applyLoginItem } from './autostart'
 import {
+  getVolumeState,
+  startVolumeWatcher,
+  stopVolumeWatcher
+} from './services/audio'
+import {
   getMediaState,
   releaseMedia,
   sendMediaCommand,
@@ -194,6 +199,26 @@ function runSmokeTest(win: BrowserWindow): void {
     }
   }
 
+  /** Waits for the Core Audio watcher to report the default endpoint volume. */
+  const verifyVolume = async (): Promise<{
+    ok: boolean
+    level: number | null
+    muted: boolean | null
+  }> => {
+    let state = getVolumeState()
+    const deadline = Date.now() + 1500
+    while (!state && Date.now() < deadline) {
+      await wait(100)
+      state = getVolumeState()
+    }
+
+    return {
+      ok: state !== null,
+      level: state ? Math.round(state.level * 100) : null,
+      muted: state?.muted ?? null
+    }
+  }
+
   /** Drives the shell through hover → pin → escape → double-click hide. */
   const verifyInteractions = async (): Promise<{
     clickExpands: boolean
@@ -273,6 +298,10 @@ function runSmokeTest(win: BrowserWindow): void {
     app: string | null
     title: string | null
     artwork: boolean
+  }, volume: {
+    ok: boolean
+    level: number | null
+    muted: boolean | null
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -285,11 +314,13 @@ function runSmokeTest(win: BrowserWindow): void {
           interactions.hideOnDoubleClick &&
           interactions.resetOnHide &&
           system.ok &&
-          media.ok,
+          media.ok &&
+          volume.ok,
         rendererReady,
         ...interactions,
         system,
         media,
+        volume,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -311,11 +342,13 @@ function runSmokeTest(win: BrowserWindow): void {
   const timer = setInterval(() => {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
-      void verifySystem().then((system) =>
-        verifyMedia().then((media) =>
-          verifyInteractions().then((interactions) => finish(interactions, system, media))
-        )
-      )
+      void (async () => {
+        const system = await verifySystem()
+        const media = await verifyMedia()
+        const volume = await verifyVolume()
+        const interactions = await verifyInteractions()
+        finish(interactions, system, media, volume)
+      })()
     }
   }, 100)
 }
@@ -343,6 +376,7 @@ async function bootstrap(): Promise<void> {
   registerIpc()
   registerHotkey()
   syncLoginItem()
+  startVolumeWatcher()
 
   screen.on('display-metrics-changed', handleDisplays)
   screen.on('display-added', handleDisplays)
@@ -365,6 +399,7 @@ if (!gotSingleInstanceLock) {
     markQuitting()
     stopSystemSampler()
     stopMediaHelper()
+    stopVolumeWatcher()
     globalShortcut.unregisterAll()
     destroyTray()
   })

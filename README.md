@@ -59,6 +59,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       process lingers
 - [x] `npm run smoke` boots the helper and reports the detected session
 
+**Revisions — volume HUD & album ambient** ✅
+
+- [x] Volume and mute keys pop a HUD inside the island (speaker icon, animated
+      level bar, percentage) that fades out after 1.5 s — collapsed and expanded
+- [x] The level is read straight from the default render device
+      (`IAudioEndpointVolume` through koffi COM vtable calls, 150 ms poll), so
+      mixer, browser and media-key changes all show up — no helper process
+- [x] The default endpoint is re-resolved every couple of seconds, so switching
+      to headphones or another output device keeps working
+- [x] Cover art is reduced to an ambient colour (`--ambient` CSS variable) that
+      tints the island glass and the artwork shadow while Media is open
+- [x] Ambient strength follows the artwork: vivid covers glow, greyscale sleeves
+      stay almost neutral; the collapsed pill only picks up a hint
+- [x] `npm run smoke` also reports the current volume and mute state
+
 Next: Milestone 5 — keyboard indicator.
 
 ## Try it
@@ -100,6 +115,7 @@ src/
     index.ts            lifecycle, single instance, hotkey, IPC
     services/media.ts   SMTC helper lifecycle, JSON line parser, commands
     services/smtc.ps1   WinRT now-playing bridge (PowerShell 5.1)
+    services/audio.ts   Core Audio master volume/ mute watcher (koffi COM)
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -144,6 +160,15 @@ resources/              generated icons (committed)
   `WindowsRuntimeStreamExtensions.AsStreamForRead` through reflection.
 - `koffi` ships a prebuilt N-API binary; when packaging, its `.node` file must be
   unpacked from the asar archive (Milestone 7).
+- COM interfaces have no Node binding either, so the volume watcher calls the
+  `IMMDeviceEnumerator` / `IAudioEndpointVolume` vtable slots through `koffi`
+  (`koffi.decode` on the vtable, `koffi.proto` for the calling convention). The
+  poll is a couple of microseconds, so it runs for the whole app lifetime and
+  only sends IPC when the level or mute flag actually changes.
+- The ambient colour is computed in the renderer: the artwork data URL is drawn
+  onto a 24×24 canvas, near-black/near-white pixels are ignored, and the rest is
+  averaged with a saturation weight. The result is written to the `--ambient`
+  CSS variable, so nothing about the track leaves the window.
 - CPU temperature needs admin rights or an OHM-compatible sensor; when
   `systeminformation` returns `null` the UI shows thread count instead.
 - Placeholder menu entry “Settings…” is wired up in Milestone 7.

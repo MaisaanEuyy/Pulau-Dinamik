@@ -77,6 +77,8 @@ function Format-AppName([string]$id) {
   if ($bang -ge 0) { $name = $name.Substring($bang + 1) }
   if ($name -like '*\*') { $name = Split-Path $name -Leaf }
   $name = $name -replace '\.exe$', ''
+  # Chrome appends the profile to its model id ("Chrome.UserData.Profile1").
+  $name = $name -replace '\.UserData.*$', ''
 
   switch ($name) {
     'MSEdge' { return 'Edge' }

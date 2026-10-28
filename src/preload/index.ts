@@ -4,6 +4,7 @@ import { IPC } from '../shared/ipc'
 import type { MediaCommand, MediaState } from '../shared/media'
 import type { Settings } from '../shared/settings'
 import type { SystemSnapshot } from '../shared/system'
+import type { VolumeState } from '../shared/volume'
 
 const api: IslandApi = {
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet) as Promise<Settings>,
@@ -46,6 +47,14 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.mediaUpdate, handler)
     return () => {
       ipcRenderer.removeListener(IPC.mediaUpdate, handler)
+    }
+  },
+  onVolumeUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: VolumeState): void =>
+      callback(state)
+    ipcRenderer.on(IPC.volumeUpdate, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.volumeUpdate, handler)
     }
   },
   reportReady: () => {
