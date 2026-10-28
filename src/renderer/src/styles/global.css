@@ -133,27 +133,12 @@ button {
   place-items: center;
   width: 20px;
   height: 20px;
-  /* Soft amber halo, replacing the old white-dot ping. */
-  filter: drop-shadow(0 0 7px rgba(255, 194, 78, 0.3));
+  /* Soft white halo — the face itself has no head, just eyes and a mouth. */
+  filter: drop-shadow(0 0 7px rgba(206, 226, 255, 0.38));
 }
 
 .smiley-face {
   overflow: visible;
-}
-
-/* Gentle idle float. */
-.smiley-face--bob {
-  animation: smiley-bob 4.2s ease-in-out infinite;
-}
-
-@keyframes smiley-bob {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-1.3px);
-  }
 }
 
 .smiley-eye {
@@ -177,10 +162,6 @@ button {
   }
 }
 
-.smiley-mouth {
-  transition: opacity 130ms ease;
-}
-
 /* ------------------------------------------------------- mini view (header) */
 
 .mini {
@@ -190,6 +171,19 @@ button {
   gap: 7px;
   min-width: 0;
   height: 100%;
+}
+
+/* The mini view only lives inside the collapsed pill. */
+.island-mini {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+}
+
+.island-header-spacer {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .mini-art {
@@ -1449,7 +1443,6 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .smiley-face--bob,
   .smiley-eye {
     animation: none;
   }

@@ -92,9 +92,7 @@ function registerIpc(): void {
     return next
   })
 
-  ipcMain.handle(IPC.islandHide, () => {
-    hideIsland()
-  })
+  ipcMain.handle(IPC.islandHide, () => hideIsland())
 
   ipcMain.handle(IPC.islandSetExpanded, (_event, expanded: boolean) => {
     setIslandMode(expanded ? 'expanded' : 'collapsed')
@@ -281,13 +279,15 @@ function runSmokeTest(win: BrowserWindow): void {
     }
   }
 
-  /** Drives the shell through hover → pin → escape → double-click hide. */
+  /** Drives the shell through hover → pin → escape → close (tuck into the top edge). */
   const verifyInteractions = async (): Promise<{
     hoverStaysCollapsed: boolean
     clickExpands: boolean
     pinHoldsOpen: boolean
     escapeCollapses: boolean
-    hideOnDoubleClick: boolean
+    closeHides: boolean
+    hideSlidesUp: boolean
+    restoresPosition: boolean
     resetOnHide: boolean
   }> => {
     const result = {
@@ -295,10 +295,25 @@ function runSmokeTest(win: BrowserWindow): void {
       clickExpands: false,
       pinHoldsOpen: false,
       escapeCollapses: false,
-      hideOnDoubleClick: false,
+      closeHides: false,
+      hideSlidesUp: false,
+      restoresPosition: false,
       resetOnHide: false
     }
     if (!rendererReady) return result
+
+    /** Clicks the header close button — the only hide trigger in the UI. */
+    const clickHide = async (): Promise<boolean> =>
+      (await win.webContents
+        .executeJavaScript(
+          `(() => {
+            const button = document.querySelector('.island-btn[aria-label="Hide island"]')
+            if (!(button instanceof HTMLElement)) return false
+            button.click()
+            return true
+          })()`
+        )
+        .catch(() => false)) as boolean
 
     const point = headerPoint()
     // The pill now hosts quick controls, so hovering it must not expand it.
@@ -325,10 +340,24 @@ function runSmokeTest(win: BrowserWindow): void {
 
     const collapsedPoint = headerPoint()
     click(collapsedPoint.x, collapsedPoint.y, 1)
-    click(collapsedPoint.x, collapsedPoint.y, 2)
-    await wait(400)
-    result.hideOnDoubleClick = !win.isVisible()
-    if (result.hideOnDoubleClick) {
+    await wait(360)
+
+    const base = win.getBounds()
+    result.closeHides = await clickHide()
+    // Mid-tuck: the window should be above its resting position (or gone).
+    await wait(210)
+    result.hideSlidesUp = !win.isVisible() || win.getBounds().y < base.y
+
+    await wait(450)
+    result.closeHides = result.closeHides && !win.isVisible()
+    const settled = win.getBounds()
+    result.restoresPosition =
+      settled.x === base.x &&
+      settled.y === base.y &&
+      settled.width === base.width &&
+      settled.height === base.height
+
+    if (!win.isVisible()) {
       // Renderer state must be reset while hidden, otherwise the next show
       // would render an expanded pill inside the collapsed window.
       const hiddenState = (await win.webContents
@@ -342,7 +371,7 @@ function runSmokeTest(win: BrowserWindow): void {
       result.resetOnHide = hiddenState?.pinned === 'false' && hiddenState?.expanded === 'false'
 
       showIsland()
-      await wait(300)
+      await wait(400)
     }
 
     return result
@@ -395,7 +424,9 @@ function runSmokeTest(win: BrowserWindow): void {
     clickExpands: boolean
     pinHoldsOpen: boolean
     escapeCollapses: boolean
-    hideOnDoubleClick: boolean
+    closeHides: boolean
+    hideSlidesUp: boolean
+    restoresPosition: boolean
     resetOnHide: boolean
   }, system: {
     ok: boolean
@@ -437,7 +468,9 @@ function runSmokeTest(win: BrowserWindow): void {
           interactions.clickExpands &&
           interactions.pinHoldsOpen &&
           interactions.escapeCollapses &&
-          interactions.hideOnDoubleClick &&
+          interactions.closeHides &&
+          interactions.hideSlidesUp &&
+          interactions.restoresPosition &&
           interactions.resetOnHide &&
           system.ok &&
           media.ok &&

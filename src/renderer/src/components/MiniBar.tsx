@@ -217,7 +217,7 @@ function AlertsMini({ data, port }: { data: TabData['alerts']; port: number | nu
   )
 }
 
-/** Compact per-section view that lives in the island header at all times. */
+/** Compact per-section view that fills the collapsed pill. */
 export function MiniBar({
   tab,
   data,

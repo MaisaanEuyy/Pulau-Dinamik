@@ -58,6 +58,8 @@ export function Island({ settings, info }: IslandProps) {
   const [pressed, setPressed] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
   const [hud, setHud] = useState<IslandNotification | null>(null)
+  /** The window slides out of the top edge on hide; the island folds with it. */
+  const [presence, setPresence] = useState<'visible' | 'leaving'>('visible')
   const clock = useClock()
   const volume = useVolumeHud()
 
@@ -65,12 +67,15 @@ export function Island({ settings, info }: IslandProps) {
   const notifications = useNotifications()
 
   // One subscription per section, shared by the header mini view and the panel.
-  const media = useMedia(visible && tab === 'media')
+  // Media stays subscribed the whole time the island is on screen: the face
+  // reacts to the song from any section, not just Media.
+  const media = useMedia(visible)
   const system = useSystemStats(visible && tab === 'system')
   const keyboard = useKeyboard(visible && tab === 'keys')
   useAmbientColor(tab === 'media' && media.state?.active ? media.state.artwork : null)
 
   const expanded = open || pinned
+  const playing = media.state?.active === true && media.state.playing
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -104,6 +109,12 @@ export function Island({ settings, info }: IslandProps) {
   useEffect(() => () => cancelLeave(), [cancelLeave])
 
   useEffect(() => window.island.onHidden(collapse), [collapse])
+
+  // Hiding is a two-step dance with the main process: the island folds toward
+  // its top edge first (`island:hiding`), then the window slides up out of the
+  // work area. Showing runs the same path backwards.
+  useEffect(() => window.island.onHiding(() => setPresence('leaving')), [])
+  useEffect(() => window.island.onShowing(() => setPresence('visible')), [])
 
   useEffect(() => {
     // Losing focus closes the transient card, but a pinned island stays put.
@@ -174,6 +185,17 @@ export function Island({ settings, info }: IslandProps) {
     ? { duration: 0 }
     : { type: 'spring', stiffness: 320, damping: 32, mass: 0.8 }
 
+  const foldTransition: Transition = reducedMotion
+    ? { duration: 0 }
+    : {
+        ...transition,
+        // The island folds toward its top edge while the window slides up
+        // behind it, so the content is still on screen during the first half of
+        // the motion.
+        opacity: { duration: 0.26, ease: 'easeIn' },
+        scale: { type: 'spring', stiffness: 260, damping: 26, mass: 0.7 }
+      }
+
   const volumePercent = volume ? Math.round(volume.level * 100) : 0
   const VolumeIcon = volume?.muted
     ? VolumeX
@@ -193,9 +215,15 @@ export function Island({ settings, info }: IslandProps) {
       initial={false}
       animate={{
         width: expanded ? EXPANDED_SIZE.width : COLLAPSED_SIZE.width,
-        height: expanded ? EXPANDED_SIZE.height : COLLAPSED_SIZE.height
+        height: expanded ? EXPANDED_SIZE.height : COLLAPSED_SIZE.height,
+        opacity: presence === 'leaving' ? 0 : 1,
+        scale: presence === 'leaving' ? 0.58 : 1
       }}
-      transition={transition}
+      transition={foldTransition}
+      style={{
+        transformOrigin: 'center top',
+        pointerEvents: presence === 'leaving' ? 'none' : undefined
+      }}
       onMouseEnter={() => {
         cancelLeave()
         setHovered(true)
@@ -204,11 +232,6 @@ export function Island({ settings, info }: IslandProps) {
       onPointerDown={() => setPressed(true)}
       onPointerUp={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
-      onDoubleClick={(event) => {
-        // Never hide the island while the user is hammering a control.
-        if ((event.target as HTMLElement).closest('button')) return
-        void window.island.hideIsland()
-      }}
     >
       <div className="island-aura" aria-hidden="true" />
       <div
@@ -224,9 +247,22 @@ export function Island({ settings, info }: IslandProps) {
           setPinned((value) => !value)
         }}
       >
-        <Smiley hovered={hovered} pressed={pressed} expanded={expanded} />
-        <MiniBar tab={activeTab} data={data} notifyPort={notifyPort} />
-        {expanded ? (
+        <Smiley hovered={hovered} pressed={pressed} playing={playing} />
+        {/* The mini view is the pill, not a strip on top of the open card: the
+            card already shows the same track/statistics in full. */}
+        {!expanded && (
+          <motion.div
+            className="island-mini"
+            initial={{ opacity: 0, y: -3 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: reducedMotion ? 0 : 0.16 }}
+          >
+            <MiniBar tab={activeTab} data={data} notifyPort={notifyPort} />
+          </motion.div>
+        )}
+        {expanded && <span className="island-header-spacer" aria-hidden="true" />}
+        <span className="island-clock">{clock}</span>
+        {expanded && (
           <span className="island-controls">
             <button
               type="button"
@@ -253,8 +289,6 @@ export function Island({ settings, info }: IslandProps) {
               <X size={12} strokeWidth={1.9} />
             </button>
           </span>
-        ) : (
-          <span className="island-clock">{clock}</span>
         )}
 
         <AnimatePresence initial={false}>

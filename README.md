@@ -14,7 +14,8 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Tray icon (theme aware) with Show/Hide, display selection, launch-at-login, quit
 - [x] Single instance (second launch shows the island)
 - [x] Global hotkey `Ctrl+Alt+Space` to toggle the island
-- [x] Double-click the pill to hide it, `--hidden` starts quietly at login
+- [x] The close button (or the hotkey/tray) tucks the island into the top edge;
+      `--hidden` starts quietly at login
 - [x] Persisted settings in `%APPDATA%\Dynamic Island KW\settings.json`
 
 **Milestone 2 — motion, tabs and glass** ✅
@@ -105,6 +106,22 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       an Alerts list with clear/badge, and a transient header card for new ones
 - [x] `npm run smoke` checks the notification API end-to-end (health + POST)
 
+**Revisions — wide open card, white face & tuck-away hide** ✅
+
+- [x] The mini view belongs to the pill only: opening the card drops the strip
+      from the header, so the card no longer repeats the pill on top of itself.
+      The open header is `face · clock · pin · close`
+- [x] The smiley is now just white eyes and a mouth — no head, no colour — and it
+      plays along with the current song: closed, blissful eyes + a wide grin and a
+      slow sway while playing, a plain blink-and-float face when paused, pointer
+      tracking on hover and a small "o" while pressed
+- [x] Media subscribes for as long as the island is on screen (not just on the
+      Media tab), so the face reacts to the song from any section
+- [x] Double-click-to-hide is gone: the island now folds toward its top edge while
+      the window slides up out of the work area, and slides back down on show
+- [x] `npm run smoke` checks that the close button hides, that the window actually
+      travels upwards, and that it is parked back at rest afterwards
+
 Next: Milestone 7 — settings window and packaging.
 
 ## Try it
@@ -119,7 +136,8 @@ npm run dev
   leaves.
 - The pill itself is a mini dashboard: artwork + title with play/pause and
   skip buttons, CPU/RAM/GPU, the Caps/Num/Scroll state, or the latest alert.
-- `←` / `→` switch sections, double-click the pill to hide the island.
+- `←` / `→` switch sections; the × button (or `Ctrl+Alt+Space`) tucks the island
+  up into the top edge — there is no double-click-to-hide any more.
 - The **Media** section shows what is playing right now (Edge/Chrome, Spotify,
   Media Player …) with working previous / play-pause / next buttons.
 - The **System** section shows live CPU/GPU/RAM cards with model names and
@@ -200,9 +218,17 @@ resources/              generated icons (committed)
   collapsed, so clicks around the pill fall through to the desktop. Resizing a
   visible transparent window makes Windows present one stale frame at the new
   origin (the pill jumped ~108 px for a frame and looked like a blink).
+- Hiding is a two-part move: `island:hiding` folds the island toward its top edge
+  (scale + fade, `transform-origin: center top`) while the main process tweens the
+  window up `78` DIP and then hides it; `island:showing` runs the same path
+  backwards. The tween uses `setBounds` per frame — `setPosition` on a transparent
+  frameless window nudges its reported size by a pixel per call, which grew the
+  island by ~16 px over a single slide.
 - The pill is a mini dashboard, so it has to open on a click rather than on
   hover — otherwise moving the pointer onto a play button would expand the card
-  and move the button out from under the cursor. Hover only animates the smiley.
+  and move the button out from under the cursor. Hover only animates the face.
+  The mini view is rendered *only* while collapsed; the open card has its own
+  full panel and a `face · clock · pin · close` header instead of a strip.
 - Sampling follows *visibility*, not the card: `island:visibility` is sent on
   show/hide and the sections subscribe while the island is on screen (the mini
   view needs live data). Hiding the island releases everything again.
@@ -245,9 +271,9 @@ resources/              generated icons (committed)
   because the thread-local toggle bits can go stale in a background app.
 - The mini views share the panel subscriptions (`useMedia`, `useSystemStats`,
   `useKeyboard`, `useNotifications` are owned by the island), so nothing is
-  sampled twice. The media helper therefore stays warm while the island is
-  visible with the Media section selected — it still idles out 30 s after the
-  island is hidden or another section is picked.
+  sampled twice. The media helper subscribes whenever the island is *visible*
+  (the face reacts to the song on every tab) and idles out 30 s after the island
+  is hidden; System and Keys still subscribe only while their own section is up.
 - CPU temperature needs admin rights or an OHM-compatible sensor; when
   `systeminformation` returns `null` the UI shows thread count instead.
 - Placeholder menu entry “Settings…” is wired up in Milestone 7.

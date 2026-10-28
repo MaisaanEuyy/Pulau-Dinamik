@@ -36,6 +36,20 @@ const api: IslandApi = {
       ipcRenderer.removeListener(IPC.islandHidden, handler)
     }
   },
+  onHiding: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(IPC.islandHiding, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.islandHiding, handler)
+    }
+  },
+  onShowing: (callback) => {
+    const handler = (): void => callback()
+    ipcRenderer.on(IPC.islandShowing, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.islandShowing, handler)
+    }
+  },
   onVisibilityChanged: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, visible: boolean): void => callback(visible)
     ipcRenderer.on(IPC.islandVisibility, handler)

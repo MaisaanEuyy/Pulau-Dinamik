@@ -39,6 +39,10 @@ export interface IslandApi {
   onSettingsChanged(callback: (settings: Settings) => void): () => void
   /** Fired when the island is hidden (hotkey, tray or the close button). */
   onHidden(callback: () => void): () => void
+  /** Fired just before the window slides up into the top edge. */
+  onHiding(callback: () => void): () => void
+  /** Fired when the window slides back down into place. */
+  onShowing(callback: () => void): () => void
   onSystemUpdate(callback: (snapshot: SystemSnapshot) => void): () => void
   onMediaUpdate(callback: (state: MediaState) => void): () => void
   /** Fired whenever the system volume or mute state changes. */

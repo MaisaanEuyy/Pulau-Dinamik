@@ -2,9 +2,9 @@ import { useCallback, useEffect, useState } from 'react'
 import type { MediaCommand, MediaState } from '@shared/media'
 
 /**
- * Subscribes to the SMTC helper only while `active` is true (the Media tab is
- * open inside the expanded island). The last state is kept while inactive so
- * reopening the tab paints instantly instead of flashing a placeholder.
+ * Subscribes to the SMTC helper while `active` is true (the island is on
+ * screen). The last state is kept while inactive so reopening the island paints
+ * instantly instead of flashing a placeholder.
  */
 export function useMedia(active: boolean): {
   state: MediaState | null

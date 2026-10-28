@@ -6,6 +6,10 @@ export const IPC = {
   islandHide: 'island:hide',
   islandSetExpanded: 'island:set-expanded',
   islandHidden: 'island:hidden',
+  /** Sent right before the window tucks itself into the top edge. */
+  islandHiding: 'island:hiding',
+  /** Sent when the window slides back down from the top edge. */
+  islandShowing: 'island:showing',
   islandVisibility: 'island:visibility',
   islandGetVisible: 'island:get-visible',
   systemSubscribe: 'system:subscribe',
