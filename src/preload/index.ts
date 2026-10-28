@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppInfo, IslandApi } from '../shared/api'
 import { IPC } from '../shared/ipc'
+import type { MediaCommand, MediaState } from '../shared/media'
 import type { Settings } from '../shared/settings'
 import type { SystemSnapshot } from '../shared/system'
 
@@ -11,6 +12,10 @@ const api: IslandApi = {
   setExpanded: (expanded) => ipcRenderer.invoke(IPC.islandSetExpanded, expanded) as Promise<void>,
   subscribeSystem: () => ipcRenderer.invoke(IPC.systemSubscribe) as Promise<SystemSnapshot | null>,
   unsubscribeSystem: () => ipcRenderer.invoke(IPC.systemUnsubscribe) as Promise<void>,
+  subscribeMedia: () => ipcRenderer.invoke(IPC.mediaSubscribe) as Promise<MediaState | null>,
+  unsubscribeMedia: () => ipcRenderer.invoke(IPC.mediaUnsubscribe) as Promise<void>,
+  sendMediaCommand: (command: MediaCommand) =>
+    ipcRenderer.invoke(IPC.mediaCommand, command) as Promise<void>,
   getAppInfo: () => ipcRenderer.invoke(IPC.appInfo) as Promise<AppInfo>,
   onSettingsChanged: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, settings: Settings): void =>
@@ -33,6 +38,14 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.systemUpdate, handler)
     return () => {
       ipcRenderer.removeListener(IPC.systemUpdate, handler)
+    }
+  },
+  onMediaUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: MediaState): void =>
+      callback(state)
+    ipcRenderer.on(IPC.mediaUpdate, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.mediaUpdate, handler)
     }
   },
   reportReady: () => {

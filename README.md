@@ -45,7 +45,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Temperature is hidden when the sensor is unavailable (no admin / no OHM)
 - [x] `npm run smoke` verifies the sampler end-to-end (CPU, RAM, GPU, disk, battery, net)
 
-Next: Milestone 4 — media (SMTC / YouTube now playing).
+**Milestone 4 — media / now playing** ✅
+
+- [x] Reads the Windows SMTC session (`GlobalSystemMediaTransportControlsSessionManager`)
+      through a persistent PowerShell 5.1 WinRT helper (`src/main/services/smtc.ps1`)
+- [x] Track title, artist, source app and cover art (artwork is optional — some
+      players/browsers expose none, so the panel falls back to a music icon)
+- [x] Previous / play-pause / next buttons, disabled when the session does not
+      support them; the panel follows play state changes made outside the island
+- [x] Helper starts lazily on the first Media subscription, speaks one JSON state
+      line per change over stdout and takes `toggle`/`next`/`previous` on stdin
+- [x] Idles out 30 s after the panel closes (and on hide/quit) so no PowerShell
+      process lingers
+- [x] `npm run smoke` boots the helper and reports the detected session
+
+Next: Milestone 5 — keyboard indicator.
 
 ## Try it
 
@@ -57,6 +71,8 @@ npm run dev
 - Hover it to open the card, move away to collapse.
 - Click the header (or the pin button) to keep it open; `Esc` collapses it.
 - `←` / `→` switch sections, double-click the pill to hide the island.
+- The **Media** section shows what is playing right now (Edge/Chrome, Spotify,
+  Media Player …) with working previous / play-pause / next buttons.
 - The **System** section shows live CPU/GPU/RAM cards with model names and
   sparklines plus network, disk free space and battery in the footer.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
@@ -82,6 +98,8 @@ npm run icons     # regenerate tray/app icons in ./resources
 src/
   main/                 Electron main process
     index.ts            lifecycle, single instance, hotkey, IPC
+    services/media.ts   SMTC helper lifecycle, JSON line parser, commands
+    services/smtc.ps1   WinRT now-playing bridge (PowerShell 5.1)
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -113,6 +131,17 @@ resources/              generated icons (committed)
   ~1.3 s per call), so the 1 s path uses `os` for CPU/RAM and raw `GetIfTable`
   counters through **koffi** for network. Only GPU (5 s), disk/battery/temp (15 s)
   use `systeminformation`. Sampling is paused unless the System tab is visible.
+- SMTC has no Node binding, so the media service runs the WinRT projection in a
+  background **Windows PowerShell 5.1** process (`-NonInteractive`, hidden) and
+  talks JSON-over-stdio with it. The script is inlined into the bundle with
+  `?raw` and written to `%APPDATA%\Dynamic Island KW\smtc-helper.ps1` at runtime.
+  Polling is ~750 ms, commands are picked up every 50 ms, and the process is
+  killed 30 s after the last subscriber goes away.
+- Cover art arrives as an `IRandomAccessStreamReference`; the helper converts it
+  once per track to a `data:` URL (skipping anything over 4 MB) so the renderer
+  never touches the filesystem. PowerShell cannot bind WinRT streams to method
+  parameters, so the code hands the stream to
+  `WindowsRuntimeStreamExtensions.AsStreamForRead` through reflection.
 - `koffi` ships a prebuilt N-API binary; when packaging, its `.node` file must be
   unpacked from the asar archive (Milestone 7).
 - CPU temperature needs admin rights or an OHM-compatible sensor; when

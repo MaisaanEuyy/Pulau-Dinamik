@@ -9,6 +9,10 @@ export const IPC = {
   systemSubscribe: 'system:subscribe',
   systemUnsubscribe: 'system:unsubscribe',
   systemUpdate: 'system:update',
+  mediaSubscribe: 'media:subscribe',
+  mediaUnsubscribe: 'media:unsubscribe',
+  mediaCommand: 'media:command',
+  mediaUpdate: 'media:update',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

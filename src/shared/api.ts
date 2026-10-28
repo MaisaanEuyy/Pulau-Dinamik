@@ -1,3 +1,4 @@
+import type { MediaCommand, MediaState } from './media'
 import type { Settings } from './settings'
 import type { SystemSnapshot } from './system'
 
@@ -19,11 +20,18 @@ export interface IslandApi {
   subscribeSystem(): Promise<SystemSnapshot | null>
   /** Stops the sampler; called when the System panel is no longer visible. */
   unsubscribeSystem(): Promise<void>
+  /** Starts the SMTC helper if needed and returns the latest now-playing state. */
+  subscribeMedia(): Promise<MediaState | null>
+  /** Releases the helper; it stops after a short idle period. */
+  unsubscribeMedia(): Promise<void>
+  /** Sends a transport command to the current media session. */
+  sendMediaCommand(command: MediaCommand): Promise<void>
   getAppInfo(): Promise<AppInfo>
   onSettingsChanged(callback: (settings: Settings) => void): () => void
   /** Fired when the island is hidden (hotkey, tray or the close button). */
   onHidden(callback: () => void): () => void
   onSystemUpdate(callback: (snapshot: SystemSnapshot) => void): () => void
+  onMediaUpdate(callback: (state: MediaState) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }

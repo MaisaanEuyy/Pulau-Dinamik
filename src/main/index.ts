@@ -1,7 +1,16 @@
 import { app, globalShortcut, ipcMain, screen, type BrowserWindow } from 'electron'
 import { IPC } from '../shared/ipc'
+import type { MediaCommand, MediaState } from '../shared/media'
 import type { Settings } from '../shared/settings'
 import { syncLoginItem, applyLoginItem } from './autostart'
+import {
+  getMediaState,
+  releaseMedia,
+  sendMediaCommand,
+  stopMediaHelper,
+  subscribeMedia,
+  unsubscribeMedia
+} from './services/media'
 import {
   getSystemSnapshot,
   startSystemSampler,
@@ -78,6 +87,14 @@ function registerIpc(): void {
     stopSystemSampler()
   })
 
+  ipcMain.handle(IPC.mediaSubscribe, () => subscribeMedia())
+  ipcMain.handle(IPC.mediaUnsubscribe, () => {
+    unsubscribeMedia()
+  })
+  ipcMain.handle(IPC.mediaCommand, (_event, command: MediaCommand) => {
+    sendMediaCommand(command)
+  })
+
   ipcMain.handle(IPC.appInfo, () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
@@ -149,6 +166,31 @@ function runSmokeTest(win: BrowserWindow): void {
       disk: snapshot?.disk?.mount ?? null,
       battery: snapshot?.battery?.percent ?? null,
       rxPerSec: snapshot?.network?.rxPerSec ?? null
+    }
+  }
+
+  /** Cold-starts the SMTC helper and checks it reported a state line. */
+  const verifyMedia = async (): Promise<{
+    ok: boolean
+    active: boolean
+    app: string | null
+    title: string | null
+    artwork: boolean
+  }> => {
+    let state: MediaState | null = await subscribeMedia()
+    const deadline = Date.now() + 2000
+    while (!state && Date.now() < deadline) {
+      await wait(100)
+      state = getMediaState()
+    }
+    unsubscribeMedia()
+
+    return {
+      ok: state !== null,
+      active: state?.active ?? false,
+      app: state?.app ?? null,
+      title: state?.title ?? null,
+      artwork: Boolean(state?.artwork)
     }
   }
 
@@ -225,6 +267,12 @@ function runSmokeTest(win: BrowserWindow): void {
     disk: string | null
     battery: number | null
     rxPerSec: number | null
+  }, media: {
+    ok: boolean
+    active: boolean
+    app: string | null
+    title: string | null
+    artwork: boolean
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -236,10 +284,12 @@ function runSmokeTest(win: BrowserWindow): void {
           interactions.escapeCollapses &&
           interactions.hideOnDoubleClick &&
           interactions.resetOnHide &&
-          system.ok,
+          system.ok &&
+          media.ok,
         rendererReady,
         ...interactions,
         system,
+        media,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -262,7 +312,9 @@ function runSmokeTest(win: BrowserWindow): void {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
       void verifySystem().then((system) =>
-        verifyInteractions().then((interactions) => finish(interactions, system))
+        verifyMedia().then((media) =>
+          verifyInteractions().then((interactions) => finish(interactions, system, media))
+        )
       )
     }
   }, 100)
@@ -283,7 +335,10 @@ async function bootstrap(): Promise<void> {
 
   const win = createIslandWindow({ showOnReady: !launchedHidden })
   // Safety net: the renderer normally unsubscribes, but hiding must always idle us.
-  win.on('hide', () => stopSystemSampler())
+  win.on('hide', () => {
+    stopSystemSampler()
+    releaseMedia()
+  })
   createTray()
   registerIpc()
   registerHotkey()
@@ -309,6 +364,7 @@ if (!gotSingleInstanceLock) {
   app.on('before-quit', () => {
     markQuitting()
     stopSystemSampler()
+    stopMediaHelper()
     globalShortcut.unregisterAll()
     destroyTray()
   })
