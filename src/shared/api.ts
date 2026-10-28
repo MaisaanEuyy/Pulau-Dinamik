@@ -1,4 +1,5 @@
 import type { MediaCommand, MediaState } from './media'
+import type { KeyboardPulse, KeyboardState } from './keyboard'
 import type { Settings } from './settings'
 import type { SystemSnapshot } from './system'
 import type { VolumeState } from './volume'
@@ -35,6 +36,13 @@ export interface IslandApi {
   onMediaUpdate(callback: (state: MediaState) => void): () => void
   /** Fired whenever the system volume or mute state changes. */
   onVolumeUpdate(callback: (state: VolumeState) => void): () => void
+  /** Starts the keyboard watcher if needed and returns the current state. */
+  subscribeKeyboard(): Promise<KeyboardState | null>
+  /** Stops the watcher and removes the keyboard hook. */
+  unsubscribeKeyboard(): Promise<void>
+  onKeyboardUpdate(callback: (state: KeyboardState) => void): () => void
+  /** Anonymous key-down counts; the key codes never leave the main process. */
+  onKeyboardPulse(callback: (pulse: KeyboardPulse) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }

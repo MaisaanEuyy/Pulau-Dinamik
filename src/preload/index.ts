@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { AppInfo, IslandApi } from '../shared/api'
 import { IPC } from '../shared/ipc'
+import type { KeyboardPulse, KeyboardState } from '../shared/keyboard'
 import type { MediaCommand, MediaState } from '../shared/media'
 import type { Settings } from '../shared/settings'
 import type { SystemSnapshot } from '../shared/system'
@@ -55,6 +56,26 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.volumeUpdate, handler)
     return () => {
       ipcRenderer.removeListener(IPC.volumeUpdate, handler)
+    }
+  },
+  subscribeKeyboard: () =>
+    ipcRenderer.invoke(IPC.keyboardSubscribe) as Promise<KeyboardState | null>,
+  unsubscribeKeyboard: () =>
+    ipcRenderer.invoke(IPC.keyboardUnsubscribe) as Promise<void>,
+  onKeyboardUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, state: KeyboardState): void =>
+      callback(state)
+    ipcRenderer.on(IPC.keyboardUpdate, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.keyboardUpdate, handler)
+    }
+  },
+  onKeyboardPulse: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, pulse: KeyboardPulse): void =>
+      callback(pulse)
+    ipcRenderer.on(IPC.keyboardPulse, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.keyboardPulse, handler)
     }
   },
   reportReady: () => {

@@ -8,6 +8,7 @@ import {
   startVolumeWatcher,
   stopVolumeWatcher
 } from './services/audio'
+import { subscribeKeyboard, unsubscribeKeyboard, isKeyboardHookActive } from './services/keyboard'
 import {
   getMediaState,
   releaseMedia,
@@ -98,6 +99,11 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.mediaCommand, (_event, command: MediaCommand) => {
     sendMediaCommand(command)
+  })
+
+  ipcMain.handle(IPC.keyboardSubscribe, () => subscribeKeyboard())
+  ipcMain.handle(IPC.keyboardUnsubscribe, () => {
+    unsubscribeKeyboard()
   })
 
   ipcMain.handle(IPC.appInfo, () => ({
@@ -219,6 +225,27 @@ function runSmokeTest(win: BrowserWindow): void {
     }
   }
 
+  /** Reads the lock state and confirms the keyboard hook was installed. */
+  const verifyKeyboard = async (): Promise<{
+    ok: boolean
+    hook: boolean
+    caps: boolean | null
+    num: boolean | null
+    scroll: boolean | null
+  }> => {
+    const state = subscribeKeyboard()
+    const hook = isKeyboardHookActive()
+    unsubscribeKeyboard()
+
+    return {
+      ok: state !== null,
+      hook,
+      caps: state?.caps ?? null,
+      num: state?.num ?? null,
+      scroll: state?.scroll ?? null
+    }
+  }
+
   /** Drives the shell through hover → pin → escape → double-click hide. */
   const verifyInteractions = async (): Promise<{
     clickExpands: boolean
@@ -302,6 +329,12 @@ function runSmokeTest(win: BrowserWindow): void {
     ok: boolean
     level: number | null
     muted: boolean | null
+  }, keyboard: {
+    ok: boolean
+    hook: boolean
+    caps: boolean | null
+    num: boolean | null
+    scroll: boolean | null
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -315,12 +348,14 @@ function runSmokeTest(win: BrowserWindow): void {
           interactions.resetOnHide &&
           system.ok &&
           media.ok &&
-          volume.ok,
+          volume.ok &&
+          keyboard.ok,
         rendererReady,
         ...interactions,
         system,
         media,
         volume,
+        keyboard,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -346,8 +381,9 @@ function runSmokeTest(win: BrowserWindow): void {
         const system = await verifySystem()
         const media = await verifyMedia()
         const volume = await verifyVolume()
+        const keyboard = await verifyKeyboard()
         const interactions = await verifyInteractions()
-        finish(interactions, system, media, volume)
+        finish(interactions, system, media, volume, keyboard)
       })()
     }
   }, 100)
@@ -371,6 +407,7 @@ async function bootstrap(): Promise<void> {
   win.on('hide', () => {
     stopSystemSampler()
     releaseMedia()
+    unsubscribeKeyboard()
   })
   createTray()
   registerIpc()
@@ -400,6 +437,7 @@ if (!gotSingleInstanceLock) {
     stopSystemSampler()
     stopMediaHelper()
     stopVolumeWatcher()
+    unsubscribeKeyboard()
     globalShortcut.unregisterAll()
     destroyTray()
   })

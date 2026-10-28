@@ -74,7 +74,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       stay almost neutral; the collapsed pill only picks up a hint
 - [x] `npm run smoke` also reports the current volume and mute state
 
-Next: Milestone 5 — keyboard indicator.
+**Milestone 5 — keyboard indicator** ✅
+
+- [x] Lock indicators for Caps / Num / Scroll and live modifier indicators for
+      Shift / Ctrl / Alt / Win
+- [x] Rhythm strip and a keys-per-minute meter fed by anonymous key-down counts
+- [x] Key presses are counted with a `WH_KEYBOARD_LL` hook through koffi; the
+      virtual key code is only used to keep the lock state in sync and is never
+      stored, logged or sent to the renderer
+- [x] The hook exists only while the Keys section is open — closing the section,
+      collapsing the island or hiding it removes it again
+- [x] Falls back to `GetKeyState` polling for the locks when the hook cannot be
+      installed
+- [x] `npm run smoke` reports the lock state and whether the hook is installed
+
+Next: Milestone 6 — notifications.
 
 ## Try it
 
@@ -90,6 +104,8 @@ npm run dev
   Media Player …) with working previous / play-pause / next buttons.
 - The **System** section shows live CPU/GPU/RAM cards with model names and
   sparklines plus network, disk free space and battery in the footer.
+- The **Keys** section shows Caps/Num/Scroll, the modifiers you are holding and a
+  live typing meter — it counts keystrokes but never records what you type.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
 
@@ -116,6 +132,7 @@ src/
     services/media.ts   SMTC helper lifecycle, JSON line parser, commands
     services/smtc.ps1   WinRT now-playing bridge (PowerShell 5.1)
     services/audio.ts   Core Audio master volume/ mute watcher (koffi COM)
+    services/keyboard.ts lock/modifier state + key-down hook (koffi user32)
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -169,6 +186,12 @@ resources/              generated icons (committed)
   onto a 24×24 canvas, near-black/near-white pixels are ignored, and the rest is
   averaged with a saturation weight. The result is written to the `--ambient`
   CSS variable, so nothing about the track leaves the window.
+- The Keys section installs a `WH_KEYBOARD_LL` hook (through koffi) while it is
+  visible. The callback only increments a counter and reads the virtual key code
+  to flip Caps/Num/Scroll; no key code, character or timing is kept once the
+  frame has been sent, and the hook is removed as soon as the section closes.
+  The lock state starts from `GetKeyState` and is then maintained from the hook,
+  because the thread-local toggle bits can go stale in a background app.
 - CPU temperature needs admin rights or an OHM-compatible sensor; when
   `systeminformation` returns `null` the UI shows thread count instead.
 - Placeholder menu entry “Settings…” is wired up in Milestone 7.

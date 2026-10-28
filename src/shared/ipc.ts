@@ -14,6 +14,10 @@ export const IPC = {
   mediaCommand: 'media:command',
   mediaUpdate: 'media:update',
   volumeUpdate: 'volume:update',
+  keyboardSubscribe: 'keyboard:subscribe',
+  keyboardUnsubscribe: 'keyboard:unsubscribe',
+  keyboardUpdate: 'keyboard:update',
+  keyboardPulse: 'keyboard:pulse',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

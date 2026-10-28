@@ -1,5 +1,6 @@
 import { Activity, Bell, Keyboard, Music2 } from 'lucide-react'
 import type { ElementType } from 'react'
+import { KeysPanel } from './KeysPanel'
 import { MediaPanel } from './MediaPanel'
 import { SystemPanel } from './SystemPanel'
 
@@ -52,6 +53,7 @@ export type TabId = (typeof TABS)[number]['id']
 export function TabPanel({ tab, active }: { tab: TabDefinition; active: boolean }) {
   if (tab.id === 'media') return <MediaPanel active={active} />
   if (tab.id === 'system') return <SystemPanel active={active} />
+  if (tab.id === 'keys') return <KeysPanel active={active} />
 
   const Icon = tab.icon
 

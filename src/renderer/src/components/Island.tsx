@@ -115,7 +115,7 @@ export function Island({ settings, info }: IslandProps) {
   const subtitle = expanded
     ? activeTab.label.toLowerCase()
     : info
-      ? `v${info.version} · M4`
+      ? `v${info.version} · M5`
       : 'starting…'
 
   const transition: Transition = reducedMotion
