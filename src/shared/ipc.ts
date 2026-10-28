@@ -6,6 +6,9 @@ export const IPC = {
   islandHide: 'island:hide',
   islandSetExpanded: 'island:set-expanded',
   islandHidden: 'island:hidden',
+  systemSubscribe: 'system:subscribe',
+  systemUnsubscribe: 'system:unsubscribe',
+  systemUpdate: 'system:update',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

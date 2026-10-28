@@ -110,7 +110,7 @@ export function Island({ settings, info }: IslandProps) {
   const subtitle = expanded
     ? activeTab.label.toLowerCase()
     : info
-      ? `v${info.version} · M2`
+      ? `v${info.version} · M3`
       : 'starting…'
 
   const transition: Transition = reducedMotion
@@ -198,7 +198,7 @@ export function Island({ settings, info }: IslandProps) {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: reducedMotion ? 0 : 0.15 }}
             >
-              <TabPanel tab={activeTab} />
+              <TabPanel tab={activeTab} active={expanded} />
             </motion.div>
           </AnimatePresence>
         </div>

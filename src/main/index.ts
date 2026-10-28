@@ -2,6 +2,11 @@ import { app, globalShortcut, ipcMain, screen, type BrowserWindow } from 'electr
 import { IPC } from '../shared/ipc'
 import type { Settings } from '../shared/settings'
 import { syncLoginItem, applyLoginItem } from './autostart'
+import {
+  getSystemSnapshot,
+  startSystemSampler,
+  stopSystemSampler
+} from './services/system'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
 import {
@@ -68,6 +73,11 @@ function registerIpc(): void {
     setIslandMode(expanded ? 'expanded' : 'collapsed')
   })
 
+  ipcMain.handle(IPC.systemSubscribe, () => startSystemSampler())
+  ipcMain.handle(IPC.systemUnsubscribe, () => {
+    stopSystemSampler()
+  })
+
   ipcMain.handle(IPC.appInfo, () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
@@ -94,6 +104,38 @@ function runSmokeTest(win: BrowserWindow): void {
   const click = (x: number, y: number, clickCount: number): void => {
     win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount })
     win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount })
+  }
+
+  /** Runs the sampler outside the UI and checks every collector produced data. */
+  const verifySystem = async (): Promise<{
+    ok: boolean
+    cpuLoad: number | null
+    memoryPercent: number | null
+    gpu: string | null
+    disk: string | null
+    battery: number | null
+    rxPerSec: number | null
+  }> => {
+    await startSystemSampler()
+    // Two ticks: the first one only primes the CPU/network deltas.
+    await wait(2400)
+    const snapshot = getSystemSnapshot()
+    stopSystemSampler()
+
+    const memoryPercent =
+      snapshot && snapshot.memory.totalBytes > 0
+        ? Math.round((snapshot.memory.usedBytes / snapshot.memory.totalBytes) * 100)
+        : null
+
+    return {
+      ok: Boolean(snapshot && snapshot.memory.totalBytes > 0 && snapshot.cpu.threads > 0),
+      cpuLoad: snapshot?.cpu.load ?? null,
+      memoryPercent,
+      gpu: snapshot?.gpu?.name ?? null,
+      disk: snapshot?.disk?.mount ?? null,
+      battery: snapshot?.battery?.percent ?? null,
+      rxPerSec: snapshot?.network?.rxPerSec ?? null
+    }
   }
 
   /** Drives the shell through hover → pin → escape → double-click hide. */
@@ -160,6 +202,14 @@ function runSmokeTest(win: BrowserWindow): void {
     escapeCollapses: boolean
     hideOnDoubleClick: boolean
     resetOnHide: boolean
+  }, system: {
+    ok: boolean
+    cpuLoad: number | null
+    memoryPercent: number | null
+    gpu: string | null
+    disk: string | null
+    battery: number | null
+    rxPerSec: number | null
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -170,9 +220,11 @@ function runSmokeTest(win: BrowserWindow): void {
           interactions.pinHoldsOpen &&
           interactions.escapeCollapses &&
           interactions.hideOnDoubleClick &&
-          interactions.resetOnHide,
+          interactions.resetOnHide &&
+          system.ok,
         rendererReady,
         ...interactions,
+        system,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -194,7 +246,9 @@ function runSmokeTest(win: BrowserWindow): void {
   const timer = setInterval(() => {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
-      void verifyInteractions().then(finish)
+      void verifySystem().then((system) =>
+        verifyInteractions().then((interactions) => finish(interactions, system))
+      )
     }
   }, 100)
 }
@@ -213,6 +267,8 @@ async function bootstrap(): Promise<void> {
   await app.whenReady()
 
   const win = createIslandWindow({ showOnReady: !launchedHidden })
+  // Safety net: the renderer normally unsubscribes, but hiding must always idle us.
+  win.on('hide', () => stopSystemSampler())
   createTray()
   registerIpc()
   registerHotkey()
@@ -237,6 +293,7 @@ if (!gotSingleInstanceLock) {
 
   app.on('before-quit', () => {
     markQuitting()
+    stopSystemSampler()
     globalShortcut.unregisterAll()
     destroyTray()
   })

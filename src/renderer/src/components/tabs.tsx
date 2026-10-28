@@ -1,5 +1,6 @@
 import { Activity, Bell, Keyboard, Music2 } from 'lucide-react'
 import type { ElementType } from 'react'
+import { SystemPanel } from './SystemPanel'
 
 export interface TabDefinition {
   id: string
@@ -47,7 +48,9 @@ export const TABS: readonly TabDefinition[] = [
 
 export type TabId = (typeof TABS)[number]['id']
 
-export function TabPanel({ tab }: { tab: TabDefinition }) {
+export function TabPanel({ tab, active }: { tab: TabDefinition; active: boolean }) {
+  if (tab.id === 'system') return <SystemPanel active={active} />
+
   const Icon = tab.icon
 
   return (

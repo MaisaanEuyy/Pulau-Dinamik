@@ -1,4 +1,5 @@
 import type { Settings } from './settings'
+import type { SystemSnapshot } from './system'
 
 export interface AppInfo {
   version: string
@@ -14,10 +15,15 @@ export interface IslandApi {
   hideIsland(): Promise<void>
   /** Grows/shrinks the window so the animated pill never gets clipped. */
   setExpanded(expanded: boolean): Promise<void>
+  /** Starts the sampler if needed and returns the latest snapshot. */
+  subscribeSystem(): Promise<SystemSnapshot | null>
+  /** Stops the sampler; called when the System panel is no longer visible. */
+  unsubscribeSystem(): Promise<void>
   getAppInfo(): Promise<AppInfo>
   onSettingsChanged(callback: (settings: Settings) => void): () => void
   /** Fired when the island is hidden (hotkey, tray or the close button). */
   onHidden(callback: () => void): () => void
+  onSystemUpdate(callback: (snapshot: SystemSnapshot) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }
