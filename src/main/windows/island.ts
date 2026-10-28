@@ -5,6 +5,11 @@ import { getSettings } from '../settings'
 
 let islandWindow: BrowserWindow | null = null
 let quitting = false
+/**
+ * Tracks whether the island is supposed to be on screen. A `hide()` that lands
+ * before the first `ready-to-show` must win over the initial auto-show.
+ */
+let visibleIntent = false
 
 export function markQuitting(): void {
   quitting = true
@@ -66,6 +71,7 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
   })
 
   islandWindow = win
+  visibleIntent = options.showOnReady
   win.setAlwaysOnTop(true, 'screen-saver')
   win.setSkipTaskbar(true)
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
@@ -92,7 +98,7 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
     if (islandWindow === win) islandWindow = null
   })
   win.once('ready-to-show', () => {
-    if (options.showOnReady && !quitting) win.showInactive()
+    if (visibleIntent && !quitting) win.showInactive()
   })
 
   if (process.env['ELECTRON_RENDERER_URL'] && !app.isPackaged) {
@@ -106,18 +112,20 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
 
 export function showIsland(): void {
   if (!islandWindow || islandWindow.isDestroyed()) return
+  visibleIntent = true
   repositionIsland()
   islandWindow.showInactive()
 }
 
 export function hideIsland(): void {
   if (!islandWindow || islandWindow.isDestroyed()) return
+  visibleIntent = false
   islandWindow.hide()
 }
 
 export function toggleIsland(): void {
   if (!islandWindow || islandWindow.isDestroyed()) return
-  if (islandWindow.isVisible()) hideIsland()
+  if (visibleIntent) hideIsland()
   else showIsland()
 }
 

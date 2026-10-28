@@ -79,12 +79,34 @@ function registerIpc(): void {
 /** Prints diagnostics and exits. Used by `npm run smoke`. */
 function runSmokeTest(win: BrowserWindow): void {
   const startedAt = Date.now()
-  const finish = (): void => {
+
+  /** Fires a synthetic double-click so the test never touches the real desktop. */
+  const verifyDoubleClickHides = async (): Promise<boolean> => {
+    if (!rendererReady) return false
+    const { width, height } = win.getBounds()
+    const x = Math.round(width / 2)
+    const y = Math.round(height / 2)
+
+    win.webContents.sendInputEvent({ type: 'mouseMove', x, y })
+    for (const clickCount of [1, 2]) {
+      win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount })
+      win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount })
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 400))
+    const hidden = !win.isVisible()
+    if (hidden) showIsland()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    return hidden
+  }
+
+  const finish = (hideOnDoubleClick: boolean): void => {
     const bounds = win.getBounds()
     console.log(
       `[smoke] ${JSON.stringify({
-        ok: rendererReady,
+        ok: rendererReady && hideOnDoubleClick,
         rendererReady,
+        hideOnDoubleClick,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -106,7 +128,7 @@ function runSmokeTest(win: BrowserWindow): void {
   const timer = setInterval(() => {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
-      setTimeout(finish, 500)
+      void verifyDoubleClickHides().then(finish)
     }
   }, 100)
 }

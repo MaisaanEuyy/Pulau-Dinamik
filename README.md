@@ -14,10 +14,25 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Tray icon (theme aware) with Show/Hide, display selection, launch-at-login, quit
 - [x] Single instance (second launch shows the island)
 - [x] Global hotkey `Ctrl+Alt+Space` to toggle the island
+- [x] Double-click the pill to hide it, `--hidden` starts quietly at login
 - [x] Persisted settings in `%APPDATA%\Dynamic Island KW\settings.json`
-- [x] `--smoke-test` diagnostics mode
+- [x] `--smoke-test` diagnostics mode (window bounds, transparency, hotkey, double-click hide)
 
 Next: Milestone 2 — collapse/expand motion, tabs, glass styling.
+
+## Try it
+
+```bash
+npm run dev
+```
+
+- The island appears centred at the top of the primary display.
+- Hover it: the subtitle switches to the current hotkey.
+- Double-click the pill to hide it; press `Ctrl+Alt+Space` (or click the tray icon) to bring it back.
+- Right-click the tray icon for display selection, launch-at-login and quit.
+
+Windows 11 keeps new tray icons in the overflow flyout; drag the island icon onto the
+taskbar if you want it permanently visible.
 
 ## Commands
 
@@ -55,3 +70,5 @@ resources/              generated icons (committed)
 - The window has `movable: false` and `resizable: false`; position is derived
   from the display work area plus `topOffset`.
 - Placeholder menu entry “Settings…” is wired up in Milestone 2/7.
+- If `npm install` finishes without `node_modules/electron/dist`, download the
+  runtime manually: `node node_modules/electron/install.js`.
