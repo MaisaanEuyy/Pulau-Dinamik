@@ -1442,6 +1442,18 @@ button {
   white-space: nowrap;
 }
 
+.alerts-empty-warn {
+  color: rgba(251, 191, 36, 0.72);
+}
+
+.alerts-warn {
+  flex: 0 0 auto;
+  padding: 0 1px 4px;
+  color: rgba(251, 191, 36, 0.72);
+  font-size: 8px;
+  letter-spacing: 0.02em;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .smiley-eye {
     animation: none;

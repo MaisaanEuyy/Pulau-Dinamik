@@ -30,6 +30,13 @@ import {
   stopNotificationServer,
   pushNotification
 } from './services/notifications'
+import {
+  getToastAccess,
+  releaseToasts,
+  stopToastHelper,
+  subscribeToasts,
+  unsubscribeToasts
+} from './services/toasts'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
 import {
@@ -132,6 +139,11 @@ function registerIpc(): void {
   ipcMain.handle(IPC.notificationsGet, () => getNotifications())
   ipcMain.handle(IPC.notificationsClear, () => {
     clearNotifications()
+  })
+
+  ipcMain.handle(IPC.toastsSubscribe, () => subscribeToasts())
+  ipcMain.handle(IPC.toastsUnsubscribe, () => {
+    unsubscribeToasts()
   })
 
   ipcMain.handle(IPC.appInfo, () => ({
@@ -419,6 +431,30 @@ function runSmokeTest(win: BrowserWindow): void {
     return { ok: health && posted && count > 0, port: notifyPort, health, posted, count }
   }
 
+  /** Starts the WinRT toast listener and waits for it to report its access state. */
+  const verifyToasts = async (): Promise<{
+    ok: boolean
+    access: string
+    imported: number
+  }> => {
+    const before = getNotifications().length
+    await subscribeToasts()
+    const deadline = Date.now() + 5000
+    while (getToastAccess() === 'unknown' && Date.now() < deadline) {
+      await wait(150)
+    }
+    const access = getToastAccess()
+    // One poll is 600 ms; give the helper a couple of them to import the
+    // notifications that are already sitting in the notification centre.
+    await wait(1400)
+    unsubscribeToasts()
+    return {
+      ok: access !== 'unknown',
+      access,
+      imported: getNotifications().length - before
+    }
+  }
+
   const finish = (interactions: {
     hoverStaysCollapsed: boolean
     clickExpands: boolean
@@ -458,6 +494,10 @@ function runSmokeTest(win: BrowserWindow): void {
     health: boolean
     posted: boolean
     count: number
+  }, toasts: {
+    ok: boolean
+    access: string
+    imported: number
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -476,7 +516,8 @@ function runSmokeTest(win: BrowserWindow): void {
           media.ok &&
           volume.ok &&
           keyboard.ok &&
-          notifications.ok,
+          notifications.ok &&
+          toasts.ok,
         rendererReady,
         ...interactions,
         system,
@@ -484,6 +525,7 @@ function runSmokeTest(win: BrowserWindow): void {
         volume,
         keyboard,
         notifications,
+        toasts,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -511,8 +553,9 @@ function runSmokeTest(win: BrowserWindow): void {
         const volume = await verifyVolume()
         const keyboard = await verifyKeyboard()
         const notifications = await verifyNotifications()
+        const toasts = await verifyToasts()
         const interactions = await verifyInteractions()
-        finish(interactions, system, media, volume, keyboard, notifications)
+        finish(interactions, system, media, volume, keyboard, notifications, toasts)
       })()
     }
   }, 100)
@@ -543,6 +586,7 @@ async function bootstrap(): Promise<void> {
     keyboardSubscribers = 0
     stopSystemSampler()
     releaseMedia()
+    releaseToasts()
     unsubscribeKeyboard()
   })
   createTray()
@@ -571,6 +615,7 @@ if (!gotSingleInstanceLock) {
     markQuitting()
     stopSystemSampler()
     stopMediaHelper()
+    stopToastHelper()
     stopNotificationServer()
     stopVolumeWatcher()
     unsubscribeKeyboard()

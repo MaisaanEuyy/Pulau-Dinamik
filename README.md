@@ -122,6 +122,22 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] `npm run smoke` checks that the close button hides, that the window actually
       travels upwards, and that it is parked back at rest afterwards
 
+**Revisions — Windows toast mirroring** ✅
+
+- [x] The Alerts section now mirrors **real Windows notifications** (WhatsApp,
+      Chrome, Outlook, Telegram, Discord …) instead of only the local API: a second
+      PowerShell helper reads the notification centre through the WinRT
+      `UserNotificationListener` and forwards each toast as it arrives
+- [x] Each toast lands in the same list/HUD/badge as `POST /notify`, labelled with
+      the app that sent it ("Google Chrome", "Outlook", …)
+- [x] The helper only runs while the island is on screen (it idles out 30 s after a
+      hide), and picks up what arrived while it was tucked away, de-duplicated by
+      Windows' own notification id
+- [x] Windows asks for permission once; if it is denied the Alerts section explains
+      where to turn it back on instead of staying silently empty
+- [x] `npm run smoke` reports `toasts.access` and how many notification-centre
+      entries the bridge imported
+
 Next: Milestone 7 — settings window and packaging.
 
 ## Try it
@@ -144,12 +160,35 @@ npm run dev
   sparklines plus network, disk free space and battery in the footer.
 - The **Keys** section shows Caps/Num/Scroll, the modifiers you are holding and a
   live typing meter — it counts keystrokes but never records what you type.
-- The **Alerts** section lists notifications posted through the local API (see
-  below) and keeps a red dot on the tab while new ones are waiting.
+- The **Alerts** section mirrors your Windows notifications and also lists
+  anything posted through the local API (see below); it keeps a red dot on the tab
+  while new ones are waiting.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
 
 ## Notifications
+
+### Windows notifications
+
+The island mirrors the notifications Windows already shows — WhatsApp, Chrome,
+Outlook, Telegram, Discord, whatever sends a toast. A small PowerShell helper
+reads the notification centre through the WinRT `UserNotificationListener`, and
+every toast that arrives while it runs is forwarded to the Alerts section,
+labelled with the app that sent it.
+
+- Windows asks for permission the first time ("let this app read your
+  notifications"). If it is denied the Alerts section says so instead of staying
+  silently empty — re-enable it in **Settings → Privacy & security →
+  Notifications**.
+- The helper runs only while the island is on screen and stops ~30 s after it is
+  hidden, so the app stays idle in the tray.
+- Notifications that arrived while it was not running are imported when the island
+  comes back, exactly once: they are de-duplicated by `app + notification id +
+  timestamp`, and anything older than the app start is ignored.
+- Text and app names stay in memory (last 24) and are never sent anywhere; the
+  helper writes no files, just one JSON line per toast over the pipe.
+
+### Local API and CLI
 
 The app listens on `http://127.0.0.1:43110` (it walks up to `:43119` when the
 port is taken) and only binds to loopback — nothing is exposed to the network.
@@ -165,6 +204,10 @@ curl http://127.0.0.1:43110/health
 `level` is one of `info`, `success`, `warning`, `error`. New notifications pop a
 card over the header for ~4 s, land in the Alerts list and mark the tab with a
 dot. The list is kept in memory only (last 24) and is cleared when the app quits.
+
+The island has to be running for the CLI to find it (otherwise it exits with
+`no Dynamic Island API found … is the app running?`), and the flags need the `--`
+separator — `npm run notify -t "Hi"` makes npm swallow `-t` and the message.
 
 Windows 11 keeps new tray icons in the overflow flyout; drag the island icon onto the
 taskbar if you want it permanently visible.
@@ -192,6 +235,8 @@ src/
     services/audio.ts   Core Audio master volume/ mute watcher (koffi COM)
     services/keyboard.ts lock/modifier state + key-down hook (koffi user32)
     services/notifications.ts local HTTP API (POST /notify) + in-memory list
+    services/toasts.ts  Windows notification-centre bridge lifecycle + parser
+    services/toasts.ps1 WinRT UserNotificationListener bridge (PowerShell 5.1)
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -235,6 +280,12 @@ resources/              generated icons (committed)
 - The notification API binds to `127.0.0.1` only, caps bodies at 16 KB, trims
   every field and keeps the last 24 entries in memory. The CLI probes
   `/health` across the port range to find the running instance.
+- Windows toast mirroring uses `Windows.UI.Notifications.Management.UserNotificationListener`
+  from an unpackaged PowerShell process; the first call to `RequestAccessAsync()`
+  is what triggers the Windows consent prompt. The listener returns the same
+  entries the notification centre shows, so the bridge polls it (~600 ms) and
+  emits only keys it has not seen; the main process filters out anything created
+  before the app started so old history does not flood the list.
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait

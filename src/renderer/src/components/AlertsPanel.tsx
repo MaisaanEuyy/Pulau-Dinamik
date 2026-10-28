@@ -42,17 +42,31 @@ export function AlertsPanel({
   alerts: NotificationsStore
   port: number | null
 }) {
+  // Windows shows its consent prompt the first time; until it is accepted the
+  // bridge stays silent, which is worth explaining instead of an empty list.
+  const blocked = alerts.windowsAccess === 'denied'
+
   if (alerts.items.length === 0) {
     return (
       <div className="alerts-empty">
         <span className="alerts-empty-icon">
           <Bell size={17} strokeWidth={1.7} />
         </span>
-        <span className="alerts-empty-title">No notifications yet</span>
-        <span className="alerts-empty-hint">
-          POST JSON to <code>http://127.0.0.1:{port ?? 43110}/notify</code> or run
-          <code> npm run notify -- -t "Build done"</code>.
+        <span className="alerts-empty-title">
+          {blocked ? 'Windows notifications blocked' : 'No notifications yet'}
         </span>
+        {blocked ? (
+          <span className="alerts-empty-hint alerts-empty-warn">
+            Turn the island back on in Settings → Privacy &amp; security → Notifications, then
+            reopen it. Toasts from Windows apps show up here once access is allowed.
+          </span>
+        ) : (
+          <span className="alerts-empty-hint">
+            Toasts from Windows apps show up here on their own. You can also POST JSON to
+            <code>http://127.0.0.1:{port ?? 43110}/notify</code> or run
+            <code> npm run notify -- -t "Build done"</code>.
+          </span>
+        )}
       </div>
     )
   }
@@ -76,6 +90,9 @@ export function AlertsPanel({
           Clear
         </button>
       </div>
+      {blocked ? (
+        <span className="alerts-warn">Windows notifications blocked in Settings</span>
+      ) : null}
       <div className="alerts-list">
         {alerts.items.map((item) => (
           <AlertRow key={item.id} item={item} />

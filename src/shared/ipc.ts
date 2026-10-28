@@ -27,6 +27,9 @@ export const IPC = {
   notification: 'notification:new',
   notificationsGet: 'notification:list',
   notificationsClear: 'notification:clear',
+  toastsSubscribe: 'toasts:subscribe',
+  toastsUnsubscribe: 'toasts:unsubscribe',
+  toastsAccess: 'toasts:access',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

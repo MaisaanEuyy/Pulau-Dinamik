@@ -3,6 +3,7 @@ import type { KeyboardPulse, KeyboardState } from './keyboard'
 import type { IslandNotification } from './notifications'
 import type { Settings } from './settings'
 import type { SystemSnapshot } from './system'
+import type { ToastAccess } from './toast'
 import type { VolumeState } from './volume'
 
 export interface AppInfo {
@@ -60,6 +61,12 @@ export interface IslandApi {
   clearNotifications(): Promise<void>
   /** Fired for every notification accepted by the local API. */
   onNotification(callback: (notification: IslandNotification) => void): () => void
+  /** Starts the Windows notification bridge and reports whether it may read toasts. */
+  subscribeToasts(): Promise<ToastAccess>
+  /** Stops the bridge after a short idle period. */
+  unsubscribeToasts(): Promise<void>
+  /** Fired when the Windows toast access state is (re)reported. */
+  onToastAccess(callback: (access: ToastAccess) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }

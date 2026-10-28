@@ -6,6 +6,7 @@ import type { MediaCommand, MediaState } from '../shared/media'
 import type { IslandNotification } from '../shared/notifications'
 import type { Settings } from '../shared/settings'
 import type { SystemSnapshot } from '../shared/system'
+import type { ToastAccess } from '../shared/toast'
 import type { VolumeState } from '../shared/volume'
 
 const api: IslandApi = {
@@ -110,6 +111,15 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.notification, handler)
     return () => {
       ipcRenderer.removeListener(IPC.notification, handler)
+    }
+  },
+  subscribeToasts: () => ipcRenderer.invoke(IPC.toastsSubscribe) as Promise<ToastAccess>,
+  unsubscribeToasts: () => ipcRenderer.invoke(IPC.toastsUnsubscribe) as Promise<void>,
+  onToastAccess: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, access: ToastAccess): void => callback(access)
+    ipcRenderer.on(IPC.toastsAccess, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.toastsAccess, handler)
     }
   },
   reportReady: () => {

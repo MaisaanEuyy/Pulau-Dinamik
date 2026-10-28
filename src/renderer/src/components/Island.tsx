@@ -64,7 +64,7 @@ export function Island({ settings, info }: IslandProps) {
   const volume = useVolumeHud()
 
   const visible = useIslandVisibility()
-  const notifications = useNotifications()
+  const notifications = useNotifications(visible)
 
   // One subscription per section, shared by the header mini view and the panel.
   // Media stays subscribed the whole time the island is on screen: the face
