@@ -37,16 +37,21 @@ function AlertRow({ item }: { item: IslandNotification }) {
 
 export function AlertsPanel({
   alerts,
-  port
+  port,
+  focus = null
 }: {
   alerts: NotificationsStore
   port: number | null
+  /** When a fresh notification just opened the card, only that one is shown —
+   * the rest of the history stays folded away instead of flooding the peek. */
+  focus?: IslandNotification | null
 }) {
   // Windows shows its consent prompt the first time; until it is accepted the
   // bridge stays silent, which is worth explaining instead of an empty list.
   const blocked = alerts.windowsAccess === 'denied'
+  const items = focus ? [focus] : alerts.items
 
-  if (alerts.items.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="alerts-empty">
         <span className="alerts-empty-icon">
@@ -72,29 +77,37 @@ export function AlertsPanel({
   }
 
   return (
-    <div className="alerts-panel">
+    <div className="alerts-panel" data-focus={focus ? 'true' : 'false'}>
       <div className="alerts-head">
         <span className="alerts-count">
-          {alerts.items.length} recent
-          {alerts.unseen > 0 ? <span className="alerts-new"> · {alerts.unseen} new</span> : null}
+          {focus ? (
+            'Just arrived'
+          ) : (
+            <>
+              {alerts.items.length} recent
+              {alerts.unseen > 0 ? <span className="alerts-new"> · {alerts.unseen} new</span> : null}
+            </>
+          )}
         </span>
-        <button
-          type="button"
-          className="alerts-clear"
-          onClick={(event) => {
-            event.stopPropagation()
-            void alerts.clear()
-          }}
-        >
-          <Trash2 size={10} strokeWidth={2.2} />
-          Clear
-        </button>
+        {focus ? null : (
+          <button
+            type="button"
+            className="alerts-clear"
+            onClick={(event) => {
+              event.stopPropagation()
+              void alerts.clear()
+            }}
+          >
+            <Trash2 size={10} strokeWidth={2.2} />
+            Clear
+          </button>
+        )}
       </div>
       {blocked ? (
         <span className="alerts-warn">Windows notifications blocked in Settings</span>
       ) : null}
       <div className="alerts-list">
-        {alerts.items.map((item) => (
+        {items.map((item) => (
           <AlertRow key={item.id} item={item} />
         ))}
       </div>

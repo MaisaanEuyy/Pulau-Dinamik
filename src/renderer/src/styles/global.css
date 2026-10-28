@@ -523,10 +523,12 @@ button {
   pointer-events: none;
 }
 
-/* While expanded, leave the pin/close buttons reachable (the mini controls are
-   covered by the HUD on purpose: it replaces the header for a moment). */
+/* While expanded, the HUD keeps its backdrop across the whole header and just
+   leaves room for the pin/close buttons, which float above it (see
+   `.island-controls`). Ending the panel 65 px early left a hard vertical seam
+   next to the buttons, which read as "not symmetrical". */
 .volume-hud[data-expanded='true'] {
-  right: 65px;
+  padding-right: 80px;
 }
 
 .volume-icon {
@@ -592,7 +594,7 @@ button {
 }
 
 .alert-hud[data-expanded='true'] {
-  right: 65px;
+  padding-right: 80px;
 }
 
 .alert-hud-icon {
@@ -654,6 +656,10 @@ button {
 /* ---------------------------------------------------------------- controls */
 
 .island-controls {
+  /* Above the volume/alert HUDs: they now paint across the whole header, so the
+     pin/close buttons have to sit on top of them instead of beside them. */
+  position: relative;
+  z-index: 5;
   display: flex;
   flex: 0 0 auto;
   align-items: center;

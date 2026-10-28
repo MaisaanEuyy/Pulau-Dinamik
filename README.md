@@ -153,6 +153,11 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       the stats/keys panel) was up: the notification is what you are meant to look
       at. The section you were on comes back when the HUD folds, unless you clicked
       into the card during it
+- [x] The peek shows **only the newest notification** ("Just arrived") instead of
+      dumping the whole history; clicking anywhere in the card unfolds the list
+- [x] The volume HUD no longer ends in a hard vertical seam next to the pin/close
+      buttons in the expanded view: its backdrop runs edge to edge and the buttons
+      float above it, so the header reads as one strip
 - [x] The toast bridge now runs for the app's whole lifetime (it used to idle out
       30 s after a hide), so a notification can pop the island open while it is
       tucked away
@@ -327,6 +332,10 @@ resources/              generated icons (committed)
   base is a gradient, so a `background` transition fades `background-color` from
   `transparent` and the white circle blinks through the dark pill for the length of
   the transition. They brighten an inset `box-shadow` instead.
+- The volume and alert HUDs cover the header edge to edge in both modes (only the
+  content is padded to clear the pin/close buttons, which sit at `z-index: 5` on
+  top). Insetting the panel itself left a hard seam that made the expanded header
+  look lopsided.
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait

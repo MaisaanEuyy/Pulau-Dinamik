@@ -59,6 +59,9 @@ export function Island({ settings, info }: IslandProps) {
   const [pressed, setPressed] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
   const [hud, setHud] = useState<IslandNotification | null>(null)
+  /** The notification that opened the card: while it is set the Alerts panel
+   * shows only that one instead of the whole history. */
+  const [alertFocus, setAlertFocus] = useState<IslandNotification | null>(null)
   /** The window slides out of the top edge on hide; the island folds with it. */
   const [presence, setPresence] = useState<'visible' | 'leaving'>('visible')
   const clock = useClock()
@@ -96,6 +99,7 @@ export function Island({ settings, info }: IslandProps) {
     // Closing by hand (Escape, a click on close, the main process) also ends the
     // notification session, so its HUD must not restore anything afterwards.
     tookOver.current = true
+    setAlertFocus(null)
     cancelLeave()
     setPinned(false)
     setOpen(false)
@@ -196,6 +200,7 @@ export function Island({ settings, info }: IslandProps) {
         // down and open the card, so the HUD has room to be read.
         if (!visibleRef.current) void window.island.showIsland()
         setHud(notification)
+        setAlertFocus(notification)
         if (!pinnedRef.current) setOpen(true)
         // Show the thing that just happened: the Alerts section, not whatever
         // tab was up (a song, the stats…) — the notification is the news here.
@@ -209,6 +214,8 @@ export function Island({ settings, info }: IslandProps) {
     const timer = setTimeout(() => {
       setHud(null)
       hudActive.current = false
+      // The peek is over: the Alerts section (if still open) shows the history.
+      setAlertFocus(null)
       // A click, a key or Escape means the user is driving now: leave the card
       // on the section they are actually looking at.
       if (tookOver.current) return
@@ -300,6 +307,8 @@ export function Island({ settings, info }: IslandProps) {
         autoOpened.current = false
         hiddenBefore.current = false
         tookOver.current = true
+        // Touching the card also unfolds the alert history under it.
+        setAlertFocus(null)
         setPressed(true)
       }}
       onPointerUp={() => setPressed(false)}
@@ -443,7 +452,7 @@ export function Island({ settings, info }: IslandProps) {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: reducedMotion ? 0 : 0.15 }}
             >
-              <TabPanel tab={activeTab} data={data} notifyPort={notifyPort} />
+              <TabPanel tab={activeTab} data={data} notifyPort={notifyPort} focusAlert={alertFocus} />
             </motion.div>
           </AnimatePresence>
         </div>

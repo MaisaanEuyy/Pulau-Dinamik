@@ -1,6 +1,7 @@
 import { Activity, Bell, Keyboard, Music2 } from 'lucide-react'
 import type { ElementType } from 'react'
 import type { MediaCommand, MediaState } from '@shared/media'
+import type { IslandNotification } from '@shared/notifications'
 import type { SystemSnapshot } from '@shared/system'
 import type { KeyboardActivity } from '../hooks/useKeyboard'
 import type { NotificationsStore } from '../hooks/useNotifications'
@@ -69,15 +70,17 @@ export interface TabData {
 export function TabPanel({
   tab,
   data,
-  notifyPort
+  notifyPort,
+  focusAlert = null
 }: {
   tab: TabDefinition
   data: TabData
   notifyPort: number | null
+  focusAlert?: IslandNotification | null
 }) {
   if (tab.id === 'media') return <MediaPanel state={data.media.state} send={data.media.send} />
   if (tab.id === 'system') return <SystemPanel snapshot={data.system} />
   if (tab.id === 'keys') return <KeysPanel activity={data.keyboard} />
 
-  return <AlertsPanel alerts={data.alerts} port={notifyPort} />
+  return <AlertsPanel alerts={data.alerts} port={notifyPort} focus={focusAlert} />
 }
