@@ -13,6 +13,7 @@ const api: IslandApi = {
   getSettings: () => ipcRenderer.invoke(IPC.settingsGet) as Promise<Settings>,
   patchSettings: (patch) => ipcRenderer.invoke(IPC.settingsPatch, patch) as Promise<Settings>,
   hideIsland: () => ipcRenderer.invoke(IPC.islandHide) as Promise<void>,
+  showIsland: () => ipcRenderer.invoke(IPC.islandShow) as Promise<void>,
   setExpanded: (expanded) => ipcRenderer.invoke(IPC.islandSetExpanded, expanded) as Promise<void>,
   getVisibility: () => ipcRenderer.invoke(IPC.islandGetVisible) as Promise<boolean>,
   subscribeSystem: () => ipcRenderer.invoke(IPC.systemSubscribe) as Promise<SystemSnapshot | null>,

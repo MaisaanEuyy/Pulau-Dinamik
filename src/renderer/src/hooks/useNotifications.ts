@@ -15,10 +15,11 @@ export interface NotificationsStore {
 
 /**
  * Mirrors the in-memory notification list kept by the main process. Two sources
- * feed it: the local HTTP API and the WinRT toast bridge. The bridge only runs
- * while the island is visible, so it is tied to `visible` here.
+ * feed it: the local HTTP API and the WinRT toast bridge. The bridge stays
+ * subscribed for the whole app lifetime — a notification that arrives while the
+ * island is tucked away has to be able to pop it back down.
  */
-export function useNotifications(visible: boolean): NotificationsStore {
+export function useNotifications(): NotificationsStore {
   const [items, setItems] = useState<IslandNotification[]>([])
   const [unseen, setUnseen] = useState(0)
   const [windowsAccess, setWindowsAccess] = useState<ToastAccess>('unknown')
@@ -48,8 +49,6 @@ export function useNotifications(visible: boolean): NotificationsStore {
   }, [])
 
   useEffect(() => {
-    if (!visible) return
-
     let alive = true
     void window.island
       .subscribeToasts()
@@ -62,7 +61,7 @@ export function useNotifications(visible: boolean): NotificationsStore {
       alive = false
       void window.island.unsubscribeToasts().catch(() => undefined)
     }
-  }, [visible])
+  }, [])
 
   const markSeen = useCallback(() => setUnseen(0), [])
 

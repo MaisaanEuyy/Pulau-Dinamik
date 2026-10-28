@@ -4,6 +4,7 @@ export const IPC = {
   settingsPatch: 'settings:patch',
   settingsChanged: 'settings:changed',
   islandHide: 'island:hide',
+  islandShow: 'island:show',
   islandSetExpanded: 'island:set-expanded',
   islandHidden: 'island:hidden',
   /** Sent right before the window tucks itself into the top edge. */

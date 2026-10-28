@@ -141,6 +141,16 @@ button {
   overflow: visible;
 }
 
+/* Bass nod wrapper: the outer span keeps the press/hover pose, this one takes
+   the per-frame squash + lean from the audio analyser. */
+.smiley-beat {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  will-change: transform;
+}
+
 .smiley-eye {
   transform-box: fill-box;
   transform-origin: center;

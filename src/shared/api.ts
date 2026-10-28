@@ -20,6 +20,8 @@ export interface IslandApi {
   getSettings(): Promise<Settings>
   patchSettings(patch: Partial<Settings>): Promise<Settings>
   hideIsland(): Promise<void>
+  /** Slides the island back down (used when a notification arrives while hidden). */
+  showIsland(): Promise<void>
   /** Expands the window's interactive region so the island can grow. */
   setExpanded(expanded: boolean): Promise<void>
   /** Current visibility of the island window (false while hidden in the tray). */

@@ -9,7 +9,8 @@ import { getIslandWindow } from '../windows/island'
 import { pushNotification } from './notifications'
 
 const SCRIPT_NAME = 'toast-helper.ps1'
-/** The listener only matters while the island is on screen. */
+/** The listener runs for the app's lifetime: a hidden island still pops open for
+ * notifications. The idle stop only applies once the renderer unsubscribes. */
 const IDLE_STOP_MS = 30_000
 
 let helper: ChildProcessWithoutNullStreams | null = null
@@ -170,16 +171,6 @@ export function unsubscribeToasts(): void {
   subscribers = Math.max(0, subscribers - 1)
   if (subscribers > 0) return
   if (idleTimer) clearTimeout(idleTimer)
-  idleTimer = setTimeout(() => {
-    idleTimer = null
-    if (subscribers === 0) killHelper()
-  }, IDLE_STOP_MS)
-}
-
-/** Safety net for hiding the island while the Alerts panel is still mounted. */
-export function releaseToasts(): void {
-  subscribers = 0
-  if (idleTimer) return
   idleTimer = setTimeout(() => {
     idleTimer = null
     if (subscribers === 0) killHelper()

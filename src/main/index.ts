@@ -32,7 +32,6 @@ import {
 } from './services/notifications'
 import {
   getToastAccess,
-  releaseToasts,
   stopToastHelper,
   subscribeToasts,
   unsubscribeToasts
@@ -100,6 +99,7 @@ function registerIpc(): void {
   })
 
   ipcMain.handle(IPC.islandHide, () => hideIsland())
+  ipcMain.handle(IPC.islandShow, () => showIsland())
 
   ipcMain.handle(IPC.islandSetExpanded, (_event, expanded: boolean) => {
     setIslandMode(expanded ? 'expanded' : 'collapsed')
@@ -548,13 +548,15 @@ function runSmokeTest(win: BrowserWindow): void {
     if (rendererReady || Date.now() > deadline) {
       clearInterval(timer)
       void (async () => {
+        // Interactions first: a notification that lands mid-run now opens the
+        // card by itself, which would make the hover check read "expanded".
+        const interactions = await verifyInteractions()
         const system = await verifySystem()
         const media = await verifyMedia()
         const volume = await verifyVolume()
         const keyboard = await verifyKeyboard()
         const notifications = await verifyNotifications()
         const toasts = await verifyToasts()
-        const interactions = await verifyInteractions()
         finish(interactions, system, media, volume, keyboard, notifications, toasts)
       })()
     }
@@ -586,7 +588,6 @@ async function bootstrap(): Promise<void> {
     keyboardSubscribers = 0
     stopSystemSampler()
     releaseMedia()
-    releaseToasts()
     unsubscribeKeyboard()
   })
   createTray()

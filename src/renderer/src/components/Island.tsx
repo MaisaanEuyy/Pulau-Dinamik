@@ -6,6 +6,7 @@ import { ISLAND_LAYOUT } from '@shared/layout'
 import type { IslandNotification } from '@shared/notifications'
 import type { Settings } from '@shared/settings'
 import { useAmbientColor } from '../hooks/useAmbientColor'
+import { useBeat } from '../hooks/useBeat'
 import { useIslandVisibility } from '../hooks/useIslandVisibility'
 import { useKeyboard } from '../hooks/useKeyboard'
 import { useMedia } from '../hooks/useMedia'
@@ -64,7 +65,7 @@ export function Island({ settings, info }: IslandProps) {
   const volume = useVolumeHud()
 
   const visible = useIslandVisibility()
-  const notifications = useNotifications(visible)
+  const notifications = useNotifications()
 
   // One subscription per section, shared by the header mini view and the panel.
   // Media stays subscribed the whole time the island is on screen: the face
@@ -76,6 +77,9 @@ export function Island({ settings, info }: IslandProps) {
 
   const expanded = open || pinned
   const playing = media.state?.active === true && media.state.playing
+  // The face nods to the bass of whatever Windows is playing; the tap only runs
+  // while there is something to dance to.
+  const beat = useBeat(visible && playing && !reducedMotion)
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -153,10 +157,51 @@ export function Island({ settings, info }: IslandProps) {
   }, [expanded, tab, markSeen, alertCount])
 
   // Transient header card for notifications posted through the local API.
-  useEffect(() => window.island.onNotification(setHud), [])
+  const openRef = useRef(open)
+  openRef.current = open
+  const pinnedRef = useRef(pinned)
+  pinnedRef.current = pinned
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
+  /** A HUD session is running (several notifications can pile into one). */
+  const hudActive = useRef(false)
+  /** This notification opened the card, so it may close it again. */
+  const autoOpened = useRef(false)
+  /** The island was tucked away when the notification came in. */
+  const hiddenBefore = useRef(false)
+
+  useEffect(
+    () =>
+      window.island.onNotification((notification) => {
+        // The first notification of a burst decides what has to be restored
+        // afterwards; a second one must not forget that the island was hidden.
+        if (!hudActive.current) {
+          hudActive.current = true
+          hiddenBefore.current = !visibleRef.current
+          autoOpened.current = !openRef.current && !pinnedRef.current
+        }
+        // A notification is pointless if the island is asleep: bring it back
+        // down and open the card, so the HUD has room to be read.
+        if (!visibleRef.current) void window.island.showIsland()
+        setHud(notification)
+        if (!pinnedRef.current) setOpen(true)
+      }),
+    []
+  )
+
   useEffect(() => {
     if (!hud) return
-    const timer = setTimeout(() => setHud(null), ALERT_HUD_MS)
+    const timer = setTimeout(() => {
+      setHud(null)
+      hudActive.current = false
+      if (!autoOpened.current) return
+      autoOpened.current = false
+      if (!pinnedRef.current) setOpen(false)
+      if (hiddenBefore.current) {
+        hiddenBefore.current = false
+        void window.island.hideIsland()
+      }
+    }, ALERT_HUD_MS)
     return () => clearTimeout(timer)
   }, [hud])
 
@@ -229,7 +274,13 @@ export function Island({ settings, info }: IslandProps) {
         setHovered(true)
       }}
       onMouseLeave={handleLeave}
-      onPointerDown={() => setPressed(true)}
+      onPointerDown={() => {
+        // Touching the card means the user took over: keep it open.
+        hudActive.current = false
+        autoOpened.current = false
+        hiddenBefore.current = false
+        setPressed(true)
+      }}
       onPointerUp={() => setPressed(false)}
       onPointerCancel={() => setPressed(false)}
     >
@@ -247,7 +298,7 @@ export function Island({ settings, info }: IslandProps) {
           setPinned((value) => !value)
         }}
       >
-        <Smiley hovered={hovered} pressed={pressed} playing={playing} />
+        <Smiley hovered={hovered} pressed={pressed} playing={playing} beat={beat} />
         {/* The mini view is the pill, not a strip on top of the open card: the
             card already shows the same track/statistics in full. */}
         {!expanded && (
