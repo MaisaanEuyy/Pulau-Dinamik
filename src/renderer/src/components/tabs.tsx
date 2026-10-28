@@ -1,5 +1,10 @@
 import { Activity, Bell, Keyboard, Music2 } from 'lucide-react'
 import type { ElementType } from 'react'
+import type { MediaCommand, MediaState } from '@shared/media'
+import type { SystemSnapshot } from '@shared/system'
+import type { KeyboardActivity } from '../hooks/useKeyboard'
+import type { NotificationsStore } from '../hooks/useNotifications'
+import { AlertsPanel } from './AlertsPanel'
 import { KeysPanel } from './KeysPanel'
 import { MediaPanel } from './MediaPanel'
 import { SystemPanel } from './SystemPanel'
@@ -50,21 +55,29 @@ export const TABS: readonly TabDefinition[] = [
 
 export type TabId = (typeof TABS)[number]['id']
 
-export function TabPanel({ tab, active }: { tab: TabDefinition; active: boolean }) {
-  if (tab.id === 'media') return <MediaPanel active={active} />
-  if (tab.id === 'system') return <SystemPanel active={active} />
-  if (tab.id === 'keys') return <KeysPanel active={active} />
+/**
+ * Data for every section is owned by the island itself, so the header mini view
+ * and the full panel share one subscription instead of sampling twice.
+ */
+export interface TabData {
+  media: { state: MediaState | null; send: (command: MediaCommand) => void }
+  system: SystemSnapshot | null
+  keyboard: KeyboardActivity
+  alerts: NotificationsStore
+}
 
-  const Icon = tab.icon
+export function TabPanel({
+  tab,
+  data,
+  notifyPort
+}: {
+  tab: TabDefinition
+  data: TabData
+  notifyPort: number | null
+}) {
+  if (tab.id === 'media') return <MediaPanel state={data.media.state} send={data.media.send} />
+  if (tab.id === 'system') return <SystemPanel snapshot={data.system} />
+  if (tab.id === 'keys') return <KeysPanel activity={data.keyboard} />
 
-  return (
-    <div className="tab-panel">
-      <span className="tab-panel-icon">
-        <Icon size={16} strokeWidth={1.7} />
-      </span>
-      <span className="tab-panel-title">{tab.headline}</span>
-      <span className="tab-panel-text">{tab.description}</span>
-      <span className="tab-panel-badge">arrives in {tab.milestone}</span>
-    </div>
-  )
+  return <AlertsPanel alerts={data.alerts} port={notifyPort} />
 }

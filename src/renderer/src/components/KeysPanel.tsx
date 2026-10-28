@@ -1,4 +1,4 @@
-import { useKeyboard } from '../hooks/useKeyboard'
+import type { KeyboardActivity } from '../hooks/useKeyboard'
 
 const LOCKS = [
   { key: 'caps', label: 'Caps' },
@@ -13,8 +13,8 @@ const MODIFIERS = [
   { key: 'win', label: 'Win' }
 ] as const
 
-export function KeysPanel({ active }: { active: boolean }) {
-  const { state, bars, rate } = useKeyboard(active)
+export function KeysPanel({ activity }: { activity: KeyboardActivity }) {
+  const { state, bars, rate } = activity
 
   return (
     <div className="keys-panel">

@@ -3,6 +3,7 @@ import type { AppInfo, IslandApi } from '../shared/api'
 import { IPC } from '../shared/ipc'
 import type { KeyboardPulse, KeyboardState } from '../shared/keyboard'
 import type { MediaCommand, MediaState } from '../shared/media'
+import type { IslandNotification } from '../shared/notifications'
 import type { Settings } from '../shared/settings'
 import type { SystemSnapshot } from '../shared/system'
 import type { VolumeState } from '../shared/volume'
@@ -12,6 +13,7 @@ const api: IslandApi = {
   patchSettings: (patch) => ipcRenderer.invoke(IPC.settingsPatch, patch) as Promise<Settings>,
   hideIsland: () => ipcRenderer.invoke(IPC.islandHide) as Promise<void>,
   setExpanded: (expanded) => ipcRenderer.invoke(IPC.islandSetExpanded, expanded) as Promise<void>,
+  getVisibility: () => ipcRenderer.invoke(IPC.islandGetVisible) as Promise<boolean>,
   subscribeSystem: () => ipcRenderer.invoke(IPC.systemSubscribe) as Promise<SystemSnapshot | null>,
   unsubscribeSystem: () => ipcRenderer.invoke(IPC.systemUnsubscribe) as Promise<void>,
   subscribeMedia: () => ipcRenderer.invoke(IPC.mediaSubscribe) as Promise<MediaState | null>,
@@ -32,6 +34,13 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.islandHidden, handler)
     return () => {
       ipcRenderer.removeListener(IPC.islandHidden, handler)
+    }
+  },
+  onVisibilityChanged: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, visible: boolean): void => callback(visible)
+    ipcRenderer.on(IPC.islandVisibility, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.islandVisibility, handler)
     }
   },
   onSystemUpdate: (callback) => {
@@ -76,6 +85,17 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.keyboardPulse, handler)
     return () => {
       ipcRenderer.removeListener(IPC.keyboardPulse, handler)
+    }
+  },
+  getNotifications: () =>
+    ipcRenderer.invoke(IPC.notificationsGet) as Promise<IslandNotification[]>,
+  clearNotifications: () => ipcRenderer.invoke(IPC.notificationsClear) as Promise<void>,
+  onNotification: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, notification: IslandNotification): void =>
+      callback(notification)
+    ipcRenderer.on(IPC.notification, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.notification, handler)
     }
   },
   reportReady: () => {

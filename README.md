@@ -19,16 +19,16 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 
 **Milestone 2 — motion, tabs and glass** ✅
 
-- [x] Spring morph between the 248×46 pill and the 420×260 card
+- [x] Spring morph between the 300×46 pill and the 420×260 card
 - [x] The window keeps its 420×260 footprint for its entire lifetime and is only
       *shaped* down to the pill when collapsed — no resize, so no blink
-- [x] Hover to open (70 ms intent), 160 ms grace period before closing
-- [x] Click the header to pin, `Esc` to collapse, blur auto-collapses
-- [x] Pin and hide buttons, live clock while collapsed
+- [x] Click the pill to open, click the header again to pin, `Esc` to collapse,
+      blur auto-collapses, unpinned cards close 280 ms after the pointer leaves
+- [x] Pin and hide buttons, live clock in the pill
 - [x] Four sections (Media / System / Keys / Alerts) with a sliding tab indicator,
-      `←`/`→` to switch, placeholder panels for M3–M6
+      `←`/`→` to switch
 - [x] Layered glass styling: specular top edge, radial sheen, inset shading
-- [x] `npm run smoke` now also checks expand, pin, Esc collapse and state reset on hide
+- [x] `npm run smoke` now also checks open, pin, Esc collapse and state reset on hide
 
 **Milestone 3 — system monitoring** ✅
 
@@ -88,7 +88,24 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       installed
 - [x] `npm run smoke` reports the lock state and whether the hook is installed
 
-Next: Milestone 6 — notifications.
+**Revisions — mini views, smiley & notifications** ✅
+
+- [x] The pill shows a live mini view of the active section instead of the
+      "Dynamic Island" wordmark: artwork + title/artist + transport buttons,
+      CPU/RAM/GPU, Caps/Num/Scroll + typing meter, or the latest alert
+- [x] The mini view stays in the header when the card is open, so the quick
+      controls never move — play/pause, next and previous work from the pill
+- [x] The white dot became an interactive smiley: it bobs and blinks while idle,
+      follows the pointer with its eyes, squishes when the island is pressed and
+      grins while the card is open
+- [x] Sections subscribe while they are *visible*, so the mini is live while
+      collapsed and the sampling still stops when the island is hidden
+- [x] **Milestone 6 — notifications**: a local HTTP API on `127.0.0.1:43110`
+      (`POST /notify`, `GET /health`), a CLI (`npm run notify -- -t "Title"`),
+      an Alerts list with clear/badge, and a transient header card for new ones
+- [x] `npm run smoke` checks the notification API end-to-end (health + POST)
+
+Next: Milestone 7 — settings window and packaging.
 
 ## Try it
 
@@ -97,8 +114,11 @@ npm run dev
 ```
 
 - The island appears centred at the top of the primary display.
-- Hover it to open the card, move away to collapse.
-- Click the header (or the pin button) to keep it open; `Esc` collapses it.
+- Click the pill to open the card; click the header again (or the pin button) to
+  keep it open. `Esc` collapses it, and an unpinned card closes when the pointer
+  leaves.
+- The pill itself is a mini dashboard: artwork + title with play/pause and
+  skip buttons, CPU/RAM/GPU, the Caps/Num/Scroll state, or the latest alert.
 - `←` / `→` switch sections, double-click the pill to hide the island.
 - The **Media** section shows what is playing right now (Edge/Chrome, Spotify,
   Media Player …) with working previous / play-pause / next buttons.
@@ -106,8 +126,27 @@ npm run dev
   sparklines plus network, disk free space and battery in the footer.
 - The **Keys** section shows Caps/Num/Scroll, the modifiers you are holding and a
   live typing meter — it counts keystrokes but never records what you type.
+- The **Alerts** section lists notifications posted through the local API (see
+  below) and keeps a red dot on the tab while new ones are waiting.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
+
+## Notifications
+
+The app listens on `http://127.0.0.1:43110` (it walks up to `:43119` when the
+port is taken) and only binds to loopback — nothing is exposed to the network.
+
+```bash
+npm run notify -- -t "Build finished" -m "42 tests passed" -l success -a ci
+curl -X POST http://127.0.0.1:43110/notify \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Coffee is ready","level":"info"}'
+curl http://127.0.0.1:43110/health
+```
+
+`level` is one of `info`, `success`, `warning`, `error`. New notifications pop a
+card over the header for ~4 s, land in the Alerts list and mark the tab with a
+dot. The list is kept in memory only (last 24) and is cleared when the app quits.
 
 Windows 11 keeps new tray icons in the overflow flyout; drag the island icon onto the
 taskbar if you want it permanently visible.
@@ -120,6 +159,7 @@ npm run dev       # run in development (HMR for the renderer)
 npm run build     # production bundle into ./out
 npm run typecheck # type-check main/preload and renderer
 npm run smoke     # build + launch with --smoke-test, prints diagnostics and exits
+npm run notify    # post a notification to the running island (see Notifications)
 npm run icons     # regenerate tray/app icons in ./resources
 ```
 
@@ -133,6 +173,7 @@ src/
     services/smtc.ps1   WinRT now-playing bridge (PowerShell 5.1)
     services/audio.ts   Core Audio master volume/ mute watcher (koffi COM)
     services/keyboard.ts lock/modifier state + key-down hook (koffi user32)
+    services/notifications.ts local HTTP API (POST /notify) + in-memory list
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -142,6 +183,7 @@ src/
   renderer/             React UI
   shared/               types + IPC channel names shared by both sides
 scripts/gen-icons.mjs   dependency-free PNG icon generator
+scripts/notify.mjs      CLI for the local notification API
 resources/              generated icons (committed)
 ```
 
@@ -154,10 +196,19 @@ resources/              generated icons (committed)
   from the display work area plus `topOffset`.
 - The window is created at the expanded 420×260 footprint and never moves or
   resizes. `island:set-expanded` only changes the window **shape**
-  (`win.setShape`): the full card while open, the 248×46 pill rect while
+  (`win.setShape`): the full card while open, the 300×46 pill rect while
   collapsed, so clicks around the pill fall through to the desktop. Resizing a
   visible transparent window makes Windows present one stale frame at the new
   origin (the pill jumped ~108 px for a frame and looked like a blink).
+- The pill is a mini dashboard, so it has to open on a click rather than on
+  hover — otherwise moving the pointer onto a play button would expand the card
+  and move the button out from under the cursor. Hover only animates the smiley.
+- Sampling follows *visibility*, not the card: `island:visibility` is sent on
+  show/hide and the sections subscribe while the island is on screen (the mini
+  view needs live data). Hiding the island releases everything again.
+- The notification API binds to `127.0.0.1` only, caps bodies at 16 KB, trims
+  every field and keeps the last 24 entries in memory. The CLI probes
+  `/health` across the port range to find the running instance.
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait
@@ -192,6 +243,11 @@ resources/              generated icons (committed)
   frame has been sent, and the hook is removed as soon as the section closes.
   The lock state starts from `GetKeyState` and is then maintained from the hook,
   because the thread-local toggle bits can go stale in a background app.
+- The mini views share the panel subscriptions (`useMedia`, `useSystemStats`,
+  `useKeyboard`, `useNotifications` are owned by the island), so nothing is
+  sampled twice. The media helper therefore stays warm while the island is
+  visible with the Media section selected — it still idles out 30 s after the
+  island is hidden or another section is picked.
 - CPU temperature needs admin rights or an OHM-compatible sensor; when
   `systeminformation` returns `null` the UI shows thread count instead.
 - Placeholder menu entry “Settings…” is wired up in Milestone 7.

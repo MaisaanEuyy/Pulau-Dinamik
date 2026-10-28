@@ -1,7 +1,6 @@
 import { Music2, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useAmbientColor } from '../hooks/useAmbientColor'
-import { useMedia } from '../hooks/useMedia'
+import type { MediaCommand, MediaState } from '@shared/media'
 
 function ControlButton({
   label,
@@ -29,10 +28,13 @@ function ControlButton({
   )
 }
 
-export function MediaPanel({ active }: { active: boolean }) {
-  const { state, send } = useMedia(active)
-  useAmbientColor(state?.active ? state.artwork : null)
-
+export function MediaPanel({
+  state,
+  send
+}: {
+  state: MediaState | null
+  send: (command: MediaCommand) => void
+}) {
   if (!state || !state.active) {
     return (
       <div className="media-panel" data-empty="true">

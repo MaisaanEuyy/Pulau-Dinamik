@@ -6,6 +6,8 @@ export const IPC = {
   islandHide: 'island:hide',
   islandSetExpanded: 'island:set-expanded',
   islandHidden: 'island:hidden',
+  islandVisibility: 'island:visibility',
+  islandGetVisible: 'island:get-visible',
   systemSubscribe: 'system:subscribe',
   systemUnsubscribe: 'system:unsubscribe',
   systemUpdate: 'system:update',
@@ -18,6 +20,9 @@ export const IPC = {
   keyboardUnsubscribe: 'keyboard:unsubscribe',
   keyboardUpdate: 'keyboard:update',
   keyboardPulse: 'keyboard:pulse',
+  notification: 'notification:new',
+  notificationsGet: 'notification:list',
+  notificationsClear: 'notification:clear',
   appInfo: 'app:info',
   rendererReady: 'renderer:ready'
 } as const

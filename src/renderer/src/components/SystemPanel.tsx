@@ -1,7 +1,6 @@
 import { ArrowDown, ArrowUp, Zap } from 'lucide-react'
 import type { CSSProperties } from 'react'
 import type { SystemSnapshot } from '@shared/system'
-import { useSystemStats } from '../hooks/useSystemStats'
 
 const clampPercent = (value: number): number => Math.min(Math.max(value, 0), 100)
 
@@ -127,9 +126,7 @@ function batteryNote(snapshot: SystemSnapshot | null): string {
   return ''
 }
 
-export function SystemPanel({ active }: { active: boolean }) {
-  const snapshot = useSystemStats(active)
-
+export function SystemPanel({ snapshot }: { snapshot: SystemSnapshot | null }) {
   const cpu = snapshot?.cpu
   const memory = snapshot?.memory
   const gpu = snapshot?.gpu

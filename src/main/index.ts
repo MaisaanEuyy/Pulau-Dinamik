@@ -22,6 +22,14 @@ import {
   startSystemSampler,
   stopSystemSampler
 } from './services/system'
+import {
+  clearNotifications,
+  getNotifications,
+  getNotificationPort,
+  startNotificationServer,
+  stopNotificationServer,
+  pushNotification
+} from './services/notifications'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
 import {
@@ -41,6 +49,10 @@ const smokeTest = process.argv.includes('--smoke-test')
 
 let hotkeyRegistered = false
 let rendererReady = false
+/** The mini view keeps a panel subscribed while collapsed, so both the mini
+ * and the full panel can hold a subscription at the same time. */
+let systemSubscribers = 0
+let keyboardSubscribers = 0
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
@@ -88,9 +100,18 @@ function registerIpc(): void {
     setIslandMode(expanded ? 'expanded' : 'collapsed')
   })
 
-  ipcMain.handle(IPC.systemSubscribe, () => startSystemSampler())
+  ipcMain.handle(IPC.islandGetVisible, () => {
+    const win = getIslandWindow()
+    return Boolean(win && !win.isDestroyed() && win.isVisible())
+  })
+
+  ipcMain.handle(IPC.systemSubscribe, () => {
+    systemSubscribers += 1
+    return startSystemSampler()
+  })
   ipcMain.handle(IPC.systemUnsubscribe, () => {
-    stopSystemSampler()
+    systemSubscribers = Math.max(0, systemSubscribers - 1)
+    if (systemSubscribers === 0) stopSystemSampler()
   })
 
   ipcMain.handle(IPC.mediaSubscribe, () => subscribeMedia())
@@ -101,20 +122,34 @@ function registerIpc(): void {
     sendMediaCommand(command)
   })
 
-  ipcMain.handle(IPC.keyboardSubscribe, () => subscribeKeyboard())
+  ipcMain.handle(IPC.keyboardSubscribe, () => {
+    keyboardSubscribers += 1
+    return subscribeKeyboard()
+  })
   ipcMain.handle(IPC.keyboardUnsubscribe, () => {
-    unsubscribeKeyboard()
+    keyboardSubscribers = Math.max(0, keyboardSubscribers - 1)
+    if (keyboardSubscribers === 0) unsubscribeKeyboard()
+  })
+
+  ipcMain.handle(IPC.notificationsGet, () => getNotifications())
+  ipcMain.handle(IPC.notificationsClear, () => {
+    clearNotifications()
   })
 
   ipcMain.handle(IPC.appInfo, () => ({
     version: app.getVersion(),
     electron: process.versions.electron,
     platform: process.platform,
-    isPackaged: app.isPackaged
+    isPackaged: app.isPackaged,
+    notifyPort: getNotificationPort()
   }))
 
   ipcMain.on(IPC.rendererReady, () => {
     rendererReady = true
+    const win = getIslandWindow()
+    if (win && !win.isDestroyed()) {
+      win.webContents.send(IPC.islandVisibility, win.isVisible())
+    }
     console.log('[island] renderer ready')
   })
 }
@@ -248,6 +283,7 @@ function runSmokeTest(win: BrowserWindow): void {
 
   /** Drives the shell through hover → pin → escape → double-click hide. */
   const verifyInteractions = async (): Promise<{
+    hoverStaysCollapsed: boolean
     clickExpands: boolean
     pinHoldsOpen: boolean
     escapeCollapses: boolean
@@ -255,6 +291,7 @@ function runSmokeTest(win: BrowserWindow): void {
     resetOnHide: boolean
   }> => {
     const result = {
+      hoverStaysCollapsed: false,
       clickExpands: false,
       pinHoldsOpen: false,
       escapeCollapses: false,
@@ -264,10 +301,16 @@ function runSmokeTest(win: BrowserWindow): void {
     if (!rendererReady) return result
 
     const point = headerPoint()
+    // The pill now hosts quick controls, so hovering it must not expand it.
     win.webContents.sendInputEvent({ type: 'mouseMove', x: point.x, y: point.y })
-    await wait(300)
+    await wait(350)
+    result.hoverStaysCollapsed = (await islandState())?.expanded === false
+
+    click(point.x, point.y, 1)
+    await wait(320)
     result.clickExpands = (await islandState())?.expanded === true
 
+    // A second click on the header pins the island.
     click(point.x, point.y, 1)
     await wait(250)
 
@@ -305,7 +348,50 @@ function runSmokeTest(win: BrowserWindow): void {
     return result
   }
 
+  /** Posts to the local API over HTTP and checks the notification was stored. */
+  const verifyNotifications = async (): Promise<{
+    ok: boolean
+    port: number | null
+    health: boolean
+    posted: boolean
+    count: number
+  }> => {
+    const notifyPort = await startNotificationServer()
+    if (!notifyPort) return { ok: false, port: null, health: false, posted: false, count: 0 }
+
+    const base = `http://127.0.0.1:${notifyPort}`
+    let health = false
+    let posted = false
+    try {
+      const response = await fetch(`${base}/health`)
+      const body = (await response.json()) as { ok?: boolean; app?: string }
+      health = response.ok && body.ok === true && body.app === 'dynamic-island-kw'
+
+      const post = await fetch(`${base}/notify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Smoke test',
+          message: 'notifications are wired up',
+          app: 'smoke',
+          level: 'success'
+        })
+      })
+      const payload = (await post.json()) as { ok?: boolean; id?: string }
+      posted = post.ok && payload.ok === true && typeof payload.id === 'string'
+    } catch (error) {
+      console.warn('[smoke] notification API request failed', error)
+    }
+
+    // Keep one entry in the list so the renderer has something to show.
+    if (!posted) pushNotification({ title: 'Smoke test', app: 'smoke', level: 'success' })
+    const count = getNotifications().length
+
+    return { ok: health && posted && count > 0, port: notifyPort, health, posted, count }
+  }
+
   const finish = (interactions: {
+    hoverStaysCollapsed: boolean
     clickExpands: boolean
     pinHoldsOpen: boolean
     escapeCollapses: boolean
@@ -335,12 +421,19 @@ function runSmokeTest(win: BrowserWindow): void {
     caps: boolean | null
     num: boolean | null
     scroll: boolean | null
+  }, notifications: {
+    ok: boolean
+    port: number | null
+    health: boolean
+    posted: boolean
+    count: number
   }): void => {
     const bounds = win.getBounds()
     console.log(
       `[smoke] ${JSON.stringify({
         ok:
           rendererReady &&
+          interactions.hoverStaysCollapsed &&
           interactions.clickExpands &&
           interactions.pinHoldsOpen &&
           interactions.escapeCollapses &&
@@ -349,13 +442,15 @@ function runSmokeTest(win: BrowserWindow): void {
           system.ok &&
           media.ok &&
           volume.ok &&
-          keyboard.ok,
+          keyboard.ok &&
+          notifications.ok,
         rendererReady,
         ...interactions,
         system,
         media,
         volume,
         keyboard,
+        notifications,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -382,8 +477,9 @@ function runSmokeTest(win: BrowserWindow): void {
         const media = await verifyMedia()
         const volume = await verifyVolume()
         const keyboard = await verifyKeyboard()
+        const notifications = await verifyNotifications()
         const interactions = await verifyInteractions()
-        finish(interactions, system, media, volume, keyboard)
+        finish(interactions, system, media, volume, keyboard, notifications)
       })()
     }
   }, 100)
@@ -402,15 +498,21 @@ function handleDisplays(): void {
 async function bootstrap(): Promise<void> {
   await app.whenReady()
 
+  registerIpc()
+  // The notification API must be listening before the renderer asks for the
+  // app info (the Alerts section shows the port).
+  await startNotificationServer()
+
   const win = createIslandWindow({ showOnReady: !launchedHidden })
   // Safety net: the renderer normally unsubscribes, but hiding must always idle us.
   win.on('hide', () => {
+    systemSubscribers = 0
+    keyboardSubscribers = 0
     stopSystemSampler()
     releaseMedia()
     unsubscribeKeyboard()
   })
   createTray()
-  registerIpc()
   registerHotkey()
   syncLoginItem()
   startVolumeWatcher()
@@ -436,6 +538,7 @@ if (!gotSingleInstanceLock) {
     markQuitting()
     stopSystemSampler()
     stopMediaHelper()
+    stopNotificationServer()
     stopVolumeWatcher()
     unsubscribeKeyboard()
     globalShortcut.unregisterAll()

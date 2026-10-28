@@ -1,5 +1,6 @@
 import type { MediaCommand, MediaState } from './media'
 import type { KeyboardPulse, KeyboardState } from './keyboard'
+import type { IslandNotification } from './notifications'
 import type { Settings } from './settings'
 import type { SystemSnapshot } from './system'
 import type { VolumeState } from './volume'
@@ -9,6 +10,8 @@ export interface AppInfo {
   electron: string
   platform: string
   isPackaged: boolean
+  /** Port the local notification API is listening on, or `null` if it failed. */
+  notifyPort: number | null
 }
 
 /** API exposed to the renderer through `window.island` (see preload/index.ts). */
@@ -18,6 +21,10 @@ export interface IslandApi {
   hideIsland(): Promise<void>
   /** Expands the window's interactive region so the island can grow. */
   setExpanded(expanded: boolean): Promise<void>
+  /** Current visibility of the island window (false while hidden in the tray). */
+  getVisibility(): Promise<boolean>
+  /** Fired on show/hide so panels can pause sampling while invisible. */
+  onVisibilityChanged(callback: (visible: boolean) => void): () => void
   /** Starts the sampler if needed and returns the latest snapshot. */
   subscribeSystem(): Promise<SystemSnapshot | null>
   /** Stops the sampler; called when the System panel is no longer visible. */
@@ -43,6 +50,12 @@ export interface IslandApi {
   onKeyboardUpdate(callback: (state: KeyboardState) => void): () => void
   /** Anonymous key-down counts; the key codes never leave the main process. */
   onKeyboardPulse(callback: (pulse: KeyboardPulse) => void): () => void
+  /** Notifications posted through the local API since the app started. */
+  getNotifications(): Promise<IslandNotification[]>
+  /** Empties the in-memory notification list. */
+  clearNotifications(): Promise<void>
+  /** Fired for every notification accepted by the local API. */
+  onNotification(callback: (notification: IslandNotification) => void): () => void
   /** Lets the main process know the UI mounted (used by `--smoke-test`). */
   reportReady(): void
 }

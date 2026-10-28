@@ -1,11 +1,20 @@
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
-import { Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
-import { useCallback, useEffect, useState } from 'react'
+import { Bell, Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppInfo } from '@shared/api'
 import { ISLAND_LAYOUT } from '@shared/layout'
+import type { IslandNotification } from '@shared/notifications'
 import type { Settings } from '@shared/settings'
+import { useAmbientColor } from '../hooks/useAmbientColor'
+import { useIslandVisibility } from '../hooks/useIslandVisibility'
+import { useKeyboard } from '../hooks/useKeyboard'
+import { useMedia } from '../hooks/useMedia'
+import { useNotifications } from '../hooks/useNotifications'
+import { useSystemStats } from '../hooks/useSystemStats'
 import { useVolumeHud } from '../hooks/useVolumeHud'
-import { TABS, TabPanel, type TabId } from './tabs'
+import { MiniBar } from './MiniBar'
+import { Smiley } from './Smiley'
+import { TABS, TabPanel, type TabData, type TabId } from './tabs'
 
 interface IslandProps {
   settings: Settings | null
@@ -25,6 +34,10 @@ const EXPANDED_SIZE = {
 /** Time the window waits before being shaped down to the pill, so the spring
  * has settled and nothing gets clipped. */
 const SHRINK_DELAY_MS = 420
+/** Grace period before an unpinned card closes after the pointer leaves. */
+const LEAVE_DELAY_MS = 280
+/** How long a fresh notification stays on the header. */
+const ALERT_HUD_MS = 4200
 
 function useClock(): string {
   const [now, setNow] = useState(() => new Date())
@@ -39,55 +52,65 @@ function useClock(): string {
 
 export function Island({ settings, info }: IslandProps) {
   const reducedMotion = useReducedMotion() ?? false
+  const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
-  const [hoverIntent, setHoverIntent] = useState(false)
+  const [pressed, setPressed] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
+  const [hud, setHud] = useState<IslandNotification | null>(null)
   const clock = useClock()
   const volume = useVolumeHud()
 
-  const expanded = pinned || hoverIntent
+  const visible = useIslandVisibility()
+  const notifications = useNotifications()
 
-  const collapse = useCallback(() => {
-    setPinned(false)
-    setHovered(false)
-    setHoverIntent(false)
+  // One subscription per section, shared by the header mini view and the panel.
+  const media = useMedia(visible && tab === 'media')
+  const system = useSystemStats(visible && tab === 'system')
+  const keyboard = useKeyboard(visible && tab === 'keys')
+  useAmbientColor(tab === 'media' && media.state?.active ? media.state.artwork : null)
+
+  const expanded = open || pinned
+
+  const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const cancelLeave = useCallback(() => {
+    if (!leaveTimer.current) return
+    clearTimeout(leaveTimer.current)
+    leaveTimer.current = null
   }, [])
 
-  // Hover intent: opening is instant-ish, closing has a grace period so the
-  // island does not flicker when the pointer crosses its edge.
-  useEffect(() => {
-    if (hovered) {
-      const timer = setTimeout(() => setHoverIntent(true), 70)
-      return () => clearTimeout(timer)
-    }
-    const timer = setTimeout(() => setHoverIntent(false), 160)
-    return () => clearTimeout(timer)
-  }, [hovered])
+  const collapse = useCallback(() => {
+    cancelLeave()
+    setPinned(false)
+    setOpen(false)
+    setHovered(false)
+    setPressed(false)
+  }, [cancelLeave])
 
-  // The window keeps its expanded footprint for its whole lifetime and is only
-  // *shaped* down to the pill while collapsed. Resizing a visible transparent
-  // window makes Windows show one stale frame at the new origin, which reads as
-  // a blink, so the geometry itself is never animated.
-  useEffect(() => {
-    if (expanded || hovered) {
-      void window.island.setExpanded(true)
-      return
-    }
-    const timer = setTimeout(
-      () => void window.island.setExpanded(false),
-      reducedMotion ? 0 : SHRINK_DELAY_MS
-    )
-    return () => clearTimeout(timer)
-  }, [expanded, hovered, reducedMotion])
+  // The pill only opens on a click (it hosts quick controls now), so an
+  // unpinned card closes once the pointer has left it for a moment.
+  const handleLeave = useCallback(() => {
+    setHovered(false)
+    setPressed(false)
+    cancelLeave()
+    if (pinned) return
+    leaveTimer.current = setTimeout(() => {
+      leaveTimer.current = null
+      setOpen(false)
+    }, LEAVE_DELAY_MS)
+  }, [pinned, cancelLeave])
+
+  useEffect(() => () => cancelLeave(), [cancelLeave])
 
   useEffect(() => window.island.onHidden(collapse), [collapse])
 
   useEffect(() => {
-    const onBlur = (): void => collapse()
+    // Losing focus closes the transient card, but a pinned island stays put.
+    const onBlur = (): void => setOpen(false)
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
-  }, [collapse])
+  }, [])
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
@@ -111,12 +134,41 @@ export function Island({ settings, info }: IslandProps) {
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [expanded, collapse])
 
+  // Keep the Alerts badge honest while the section is on screen.
+  const markSeen = notifications.markSeen
+  const alertCount = notifications.items.length
+  useEffect(() => {
+    if (expanded && tab === 'alerts') markSeen()
+  }, [expanded, tab, markSeen, alertCount])
+
+  // Transient header card for notifications posted through the local API.
+  useEffect(() => window.island.onNotification(setHud), [])
+  useEffect(() => {
+    if (!hud) return
+    const timer = setTimeout(() => setHud(null), ALERT_HUD_MS)
+    return () => clearTimeout(timer)
+  }, [hud])
+
+  // The window keeps its expanded footprint for its whole lifetime and is only
+  // *shaped* down to the pill while collapsed. Resizing a visible transparent
+  // window makes Windows show one stale frame at the new origin, which reads as
+  // a blink, so the geometry itself is never animated.
+  useEffect(() => {
+    if (expanded) {
+      void window.island.setExpanded(true)
+      return
+    }
+    const timer = setTimeout(
+      () => void window.island.setExpanded(false),
+      reducedMotion ? 0 : SHRINK_DELAY_MS
+    )
+    return () => clearTimeout(timer)
+  }, [expanded, reducedMotion])
+
   const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0]
-  const subtitle = expanded
-    ? activeTab.label.toLowerCase()
-    : info
-      ? `v${info.version} · M5`
-      : 'starting…'
+  const notifyPort = info?.notifyPort ?? null
+
+  const data: TabData = { media, system, keyboard, alerts: notifications }
 
   const transition: Transition = reducedMotion
     ? { duration: 0 }
@@ -136,6 +188,7 @@ export function Island({ settings, info }: IslandProps) {
       className="island"
       data-expanded={expanded}
       data-pinned={pinned}
+      data-hovered={hovered}
       aria-keyshortcuts={settings?.hotkey}
       initial={false}
       animate={{
@@ -143,23 +196,36 @@ export function Island({ settings, info }: IslandProps) {
         height: expanded ? EXPANDED_SIZE.height : COLLAPSED_SIZE.height
       }}
       transition={transition}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      onDoubleClick={() => void window.island.hideIsland()}
+      onMouseEnter={() => {
+        cancelLeave()
+        setHovered(true)
+      }}
+      onMouseLeave={handleLeave}
+      onPointerDown={() => setPressed(true)}
+      onPointerUp={() => setPressed(false)}
+      onPointerCancel={() => setPressed(false)}
+      onDoubleClick={(event) => {
+        // Never hide the island while the user is hammering a control.
+        if ((event.target as HTMLElement).closest('button')) return
+        void window.island.hideIsland()
+      }}
     >
       <div className="island-aura" aria-hidden="true" />
       <div
         className="island-header"
         aria-label={expanded ? 'Island controls' : 'Dynamic Island'}
         onClick={() => {
-          if (expanded) setPinned((value) => !value)
+          // Click opens the card; a second click pins it (so it survives focus
+          // changes) instead of toggling it shut.
+          if (!expanded) {
+            setOpen(true)
+            return
+          }
+          setPinned((value) => !value)
         }}
       >
-        <span className="island-mark" aria-hidden="true" />
-        <span className="island-meta">
-          <span className="island-title">Dynamic Island</span>
-          <span className="island-sub">{subtitle}</span>
-        </span>
+        <Smiley hovered={hovered} pressed={pressed} expanded={expanded} />
+        <MiniBar tab={activeTab} data={data} notifyPort={notifyPort} />
         {expanded ? (
           <span className="island-controls">
             <button
@@ -224,6 +290,30 @@ export function Island({ settings, info }: IslandProps) {
             </motion.div>
           )}
         </AnimatePresence>
+
+        <AnimatePresence initial={false}>
+          {hud && (
+            <motion.div
+              className="alert-hud"
+              data-level={hud.level}
+              data-expanded={expanded}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: reducedMotion ? 0 : 0.18 }}
+              aria-hidden="true"
+            >
+              <span className="alert-hud-icon">
+                <Bell size={14} strokeWidth={2} />
+              </span>
+              <span className="alert-hud-text">
+                <span className="alert-hud-title">{hud.title}</span>
+                {hud.message ? <span className="alert-hud-message">{hud.message}</span> : null}
+              </span>
+              {hud.app ? <span className="alert-hud-app">{hud.app}</span> : null}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       <motion.div
@@ -247,7 +337,7 @@ export function Island({ settings, info }: IslandProps) {
               exit={{ opacity: 0, y: -4 }}
               transition={{ duration: reducedMotion ? 0 : 0.15 }}
             >
-              <TabPanel tab={activeTab} active={expanded} />
+              <TabPanel tab={activeTab} data={data} notifyPort={notifyPort} />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -275,6 +365,9 @@ export function Island({ settings, info }: IslandProps) {
                   />
                 )}
                 <Icon size={14} strokeWidth={1.9} />
+                {entry.id === 'alerts' && notifications.unseen > 0 && !active && (
+                  <span className="tab-badge" aria-hidden="true" />
+                )}
               </button>
             )
           })}

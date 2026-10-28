@@ -125,38 +125,99 @@ button {
   cursor: pointer;
 }
 
-.island-mark {
-  position: relative;
+/* --------------------------------------------------------------- smiley */
+
+.smiley {
+  display: grid;
   flex: 0 0 auto;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #eef0f6;
-  box-shadow: 0 0 10px rgba(238, 240, 246, 0.35);
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  /* Soft amber halo, replacing the old white-dot ping. */
+  filter: drop-shadow(0 0 7px rgba(255, 194, 78, 0.3));
 }
 
-.island-mark::after {
-  content: '';
-  position: absolute;
-  inset: -5px;
-  border: 1px solid rgba(238, 240, 246, 0.45);
-  border-radius: 50%;
-  animation: island-ping 3.6s ease-out infinite;
+.smiley-face {
+  overflow: visible;
 }
 
-@keyframes island-ping {
-  0% {
-    transform: scale(0.55);
-    opacity: 0.65;
-  }
-  65%,
+/* Gentle idle float. */
+.smiley-face--bob {
+  animation: smiley-bob 4.2s ease-in-out infinite;
+}
+
+@keyframes smiley-bob {
+  0%,
   100% {
-    transform: scale(1.9);
-    opacity: 0;
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-1.3px);
   }
 }
 
-.island-meta {
+.smiley-eye {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: smiley-blink 5.4s infinite;
+}
+
+@keyframes smiley-blink {
+  0%,
+  91%,
+  100% {
+    transform: scaleY(1);
+  }
+  93% {
+    transform: scaleY(0.12);
+  }
+  95%,
+  97% {
+    transform: scaleY(1);
+  }
+}
+
+.smiley-mouth {
+  transition: opacity 130ms ease;
+}
+
+/* ------------------------------------------------------- mini view (header) */
+
+.mini {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  height: 100%;
+}
+
+.mini-art {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  background: linear-gradient(145deg, rgba(244, 114, 182, 0.24), rgba(139, 92, 246, 0.18));
+  color: rgba(255, 255, 255, 0.72);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.mini-art img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mini-art[data-empty='true'] {
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(226, 232, 244, 0.55);
+}
+
+.mini-text {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
@@ -164,27 +225,189 @@ button {
   min-width: 0;
 }
 
-.island-title,
-.island-sub {
+.mini-title {
   overflow: hidden;
+  color: #f4f6fb;
+  font-size: 10.5px;
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: 0.005em;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-.island-title {
-  color: #f5f6fa;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.15;
-  letter-spacing: 0.012em;
+.mini-sub {
+  overflow: hidden;
+  color: rgba(228, 232, 244, 0.46);
+  font-size: 8.5px;
+  line-height: 1.2;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
-.island-sub {
-  color: rgba(232, 234, 242, 0.5);
-  font-size: 9.5px;
-  line-height: 1.15;
-  letter-spacing: 0.015em;
+.mini-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 2px;
+}
+
+.mini-btn {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(240, 243, 250, 0.82);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease,
+    transform 120ms ease;
+}
+
+.mini-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+}
+
+.mini-btn:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.mini-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.mini-btn--primary {
+  background: linear-gradient(180deg, #f6f7fb, #dfe4ef);
+  color: #0b0c10;
+}
+
+.mini-btn--primary:hover:not(:disabled) {
+  background: #fff;
+  color: #0b0c10;
+}
+
+.mini--system {
+  gap: 9px;
+}
+
+.mini-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.mini-dot {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--dot);
+  box-shadow: 0 0 6px var(--dot);
+}
+
+.mini-stat-label {
+  color: rgba(226, 232, 244, 0.42);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.mini-stat-value {
+  color: #f0f3fa;
+  font-size: 10.5px;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
+}
+
+.mini--keys {
+  gap: 4px;
+}
+
+.mini-lock {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  height: 17px;
+  padding: 0 6px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(226, 232, 244, 0.4);
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  transition:
+    color 120ms ease,
+    background 120ms ease,
+    border-color 120ms ease,
+    box-shadow 160ms ease;
+}
+
+.mini-lock[data-on='true'] {
+  border-color: rgba(125, 211, 252, 0.34);
+  background: rgba(125, 211, 252, 0.12);
+  color: #e4f5ff;
+  box-shadow: 0 0 12px -6px rgba(125, 211, 252, 0.9);
+}
+
+.mini-meter {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 15px;
+  min-width: 22px;
+  margin-left: 2px;
+}
+
+.mini-bar {
+  flex: 1 1 0;
+  min-width: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.95), rgba(139, 92, 246, 0.55));
+  transition:
+    height 90ms linear,
+    opacity 90ms linear;
+}
+
+.mini-rate {
+  flex: 0 0 auto;
+  color: rgba(226, 232, 244, 0.36);
+  font-size: 7.5px;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.mini--alerts[data-level='info'] {
+  --level: #7dd3fc;
+}
+
+.mini--alerts[data-level='success'] {
+  --level: #6ee7b7;
+}
+
+.mini--alerts[data-level='warning'] {
+  --level: #fbbf24;
+}
+
+.mini--alerts[data-level='error'] {
+  --level: #fb7185;
+}
+
+.mini--alerts .mini-art {
+  color: var(--level, rgba(226, 232, 244, 0.55));
 }
 
 .island-clock {
@@ -214,9 +437,10 @@ button {
   pointer-events: none;
 }
 
-/* While expanded, leave the pin/close buttons reachable. */
+/* While expanded, leave the pin/close buttons reachable (the mini controls are
+   covered by the HUD on purpose: it replaces the header for a moment). */
 .volume-hud[data-expanded='true'] {
-  right: 88px;
+  right: 65px;
 }
 
 .volume-icon {
@@ -265,6 +489,82 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
+/* --------------------------------------------------------- notification HUD */
+
+.alert-hud {
+  position: absolute;
+  z-index: 4;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 14px;
+  border-radius: 22px 22px 0 0;
+  background: linear-gradient(180deg, rgba(21, 21, 26, 0.9), rgba(8, 8, 10, 0.94));
+  backdrop-filter: blur(12px) saturate(120%);
+  pointer-events: none;
+}
+
+.alert-hud[data-expanded='true'] {
+  right: 65px;
+}
+
+.alert-hud-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: #7dd3fc;
+}
+
+.alert-hud[data-level='success'] .alert-hud-icon {
+  color: #6ee7b7;
+}
+
+.alert-hud[data-level='warning'] .alert-hud-icon {
+  color: #fbbf24;
+}
+
+.alert-hud[data-level='error'] .alert-hud-icon {
+  color: #fb7185;
+}
+
+.alert-hud-text {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.alert-hud-title {
+  overflow: hidden;
+  color: #f6f8fc;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alert-hud-message {
+  overflow: hidden;
+  color: rgba(228, 232, 244, 0.5);
+  font-size: 9px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alert-hud-app {
+  flex: 0 0 auto;
+  overflow: hidden;
+  max-width: 74px;
+  color: rgba(228, 232, 244, 0.4);
+  font-size: 8px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
 /* ---------------------------------------------------------------- controls */
 
 .island-controls {
@@ -302,7 +602,9 @@ button {
 
 .island-btn:focus-visible,
 .tab-button:focus-visible,
-.media-btn:focus-visible {
+.media-btn:focus-visible,
+.mini-btn:focus-visible,
+.alerts-clear:focus-visible {
   outline: 1px solid rgba(125, 211, 252, 0.8);
   outline-offset: 1px;
 }
@@ -934,9 +1236,221 @@ button {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.06));
 }
 
+.tab-badge {
+  position: absolute;
+  top: 5px;
+  right: 7px;
+  z-index: 2;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #fb7185;
+  box-shadow: 0 0 6px rgba(251, 113, 133, 0.9);
+}
+
+/* --------------------------------------------------------------- alerts tab */
+
+.alerts-panel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 8px 10px 6px;
+}
+
+.alerts-head {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 2px 6px;
+}
+
+.alerts-count {
+  color: rgba(226, 232, 244, 0.4);
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.alerts-new {
+  color: #7dd3fc;
+}
+
+.alerts-clear {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 7px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(228, 232, 244, 0.55);
+  font-size: 8.5px;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.alerts-clear:hover {
+  background: rgba(255, 255, 255, 0.09);
+  color: #fff;
+}
+
+.alerts-list {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 0;
+  padding-right: 2px;
+  overflow-y: auto;
+}
+
+.alerts-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.alerts-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.alert-row {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.028);
+}
+
+.alert-row[data-level='info'] {
+  --level: #7dd3fc;
+}
+
+.alert-row[data-level='success'] {
+  --level: #6ee7b7;
+}
+
+.alert-row[data-level='warning'] {
+  --level: #fbbf24;
+}
+
+.alert-row[data-level='error'] {
+  --level: #fb7185;
+}
+
+.alert-dot {
+  flex: 0 0 auto;
+  width: 5px;
+  height: 5px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--level);
+  box-shadow: 0 0 6px var(--level);
+}
+
+.alert-body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.alert-title {
+  overflow: hidden;
+  color: #f2f5fb;
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alert-message {
+  overflow: hidden;
+  color: rgba(226, 232, 244, 0.46);
+  font-size: 8.5px;
+  line-height: 1.3;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alert-meta {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.alert-time {
+  color: rgba(226, 232, 244, 0.36);
+  font-size: 7.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.alert-app {
+  color: rgba(226, 232, 244, 0.3);
+  font-size: 7px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.alerts-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 100%;
+  padding: 8px 20px;
+  text-align: center;
+}
+
+.alerts-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin-bottom: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  color: rgba(226, 232, 244, 0.5);
+}
+
+.alerts-empty-title {
+  color: #eef1f8;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+
+.alerts-empty-hint {
+  max-width: 292px;
+  color: rgba(226, 232, 244, 0.42);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.alerts-empty-hint code {
+  padding: 0 3px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(228, 236, 248, 0.72);
+  font-family: 'Cascadia Code', Consolas, monospace;
+  font-size: 8.5px;
+  white-space: nowrap;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .island-mark::after {
+  .smiley-face--bob,
+  .smiley-eye {
     animation: none;
-    opacity: 0;
   }
 }

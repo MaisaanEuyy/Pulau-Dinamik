@@ -129,6 +129,14 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
   win.on('closed', () => {
     if (islandWindow === win) islandWindow = null
   })
+  // The renderer pauses sampling while the island is hidden and re-subscribes
+  // when it is shown again.
+  win.on('show', () => {
+    if (!win.isDestroyed()) win.webContents.send(IPC.islandVisibility, true)
+  })
+  win.on('hide', () => {
+    if (!win.isDestroyed()) win.webContents.send(IPC.islandVisibility, false)
+  })
   win.once('ready-to-show', () => {
     if (visibleIntent && !quitting) win.showInactive()
   })
