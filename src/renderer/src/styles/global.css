@@ -128,6 +128,7 @@ button {
 /* --------------------------------------------------------------- smiley */
 
 .smiley {
+  position: relative;
   display: grid;
   flex: 0 0 auto;
   place-items: center;
@@ -149,6 +150,76 @@ button {
   width: 20px;
   height: 20px;
   will-change: transform;
+}
+
+/* Notes drifting off the face while a song is playing — the face is humming. */
+.smiley-notes {
+  position: absolute;
+  inset: 0;
+  color: #f8fbff;
+  pointer-events: none;
+}
+
+.smiley-note {
+  position: absolute;
+  width: 7px;
+  height: 7px;
+  margin: -3.5px 0 0 -3.5px;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px rgba(206, 226, 255, 0.45));
+  animation: smiley-note 3.4s cubic-bezier(0.33, 0.6, 0.3, 1) infinite;
+  animation-delay: var(--note-delay, 0s);
+}
+
+.smiley-note svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.smiley-note--1 {
+  left: 28%;
+  top: 30%;
+  --note-dx: -1px;
+  --note-dy: -3px;
+  --note-rotate: -14deg;
+  --note-delay: 0s;
+}
+
+.smiley-note--2 {
+  left: 54%;
+  top: 16%;
+  --note-dx: 3px;
+  --note-dy: -3px;
+  --note-rotate: 12deg;
+  --note-delay: 1.15s;
+}
+
+.smiley-note--3 {
+  left: 80%;
+  top: 26%;
+  --note-dx: 3px;
+  --note-dy: -4px;
+  --note-rotate: 18deg;
+  --note-delay: 2.3s;
+}
+
+@keyframes smiley-note {
+  0% {
+    opacity: 0;
+    transform: translate(-1px, 3px) scale(0.5) rotate(-8deg);
+  }
+  22% {
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--note-dx, 6px), var(--note-dy, -13px)) scale(1)
+      rotate(var(--note-rotate, 14deg));
+  }
 }
 
 .smiley-eye {
@@ -292,11 +363,22 @@ button {
 .mini-btn--primary {
   background: linear-gradient(180deg, #f6f7fb, #dfe4ef);
   color: #0b0c10;
+  /* `background` must not be in the transition list: the base is a gradient, so
+     swapping it for a flat colour while `background-color` fades from transparent
+     makes the white circle blink through the dark pill. Hover brightens an inset
+     shadow instead, which interpolates cleanly. */
+  transition:
+    color 140ms ease,
+    transform 120ms ease,
+    box-shadow 160ms ease;
 }
 
 .mini-btn--primary:hover:not(:disabled) {
-  background: #fff;
+  /* Restated because the shared `.mini-btn:hover` shorthand would otherwise wipe
+     the gradient out and leave a translucent circle. */
+  background: linear-gradient(180deg, #f6f7fb, #dfe4ef);
   color: #0b0c10;
+  box-shadow: inset 0 0 0 24px rgba(255, 255, 255, 0.55);
 }
 
 .mini--system {
@@ -1005,11 +1087,18 @@ button {
   border-color: rgba(255, 255, 255, 0.16);
   background: linear-gradient(180deg, #f6f7fb, #dfe4ef);
   color: #0b0c10;
+  /* Same rule as the mini primary: never fade `background` over a gradient. */
+  transition:
+    color 140ms ease,
+    transform 120ms ease,
+    box-shadow 160ms ease;
 }
 
 .media-btn--primary:hover:not(:disabled) {
-  background: #fff;
+  /* Same reason as the mini primary: keep the opaque gradient on hover. */
+  background: linear-gradient(180deg, #f6f7fb, #dfe4ef);
   color: #0b0c10;
+  box-shadow: inset 0 0 0 40px rgba(255, 255, 255, 0.55);
 }
 
 .media-panel[data-empty='true'] {
@@ -1465,7 +1554,8 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .smiley-eye {
+  .smiley-eye,
+  .smiley-note {
     animation: none;
   }
 }

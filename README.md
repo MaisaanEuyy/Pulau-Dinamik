@@ -152,6 +152,13 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] The toast bridge now runs for the app's whole lifetime (it used to idle out
       30 s after a hide), so a notification can pop the island open while it is
       tucked away
+- [x] While a song is playing, little white notes drift up off the face — pure CSS,
+      beat-scaled and off under `prefers-reduced-motion` — so the pill reads as
+      "humming" even when you are on another section
+- [x] Fixed the play/pause button blinking under the cursor: the primary buttons
+      swapped an opaque gradient for a flat colour while `background-color` faded
+      in from transparent, so the white circle flashed dark for ~140 ms on every
+      hover. Hover now brightens an inset shadow and never touches the background
 
 Next: Milestone 7 — settings window and packaging.
 
@@ -312,6 +319,10 @@ resources/              generated icons (committed)
   and the result is written to a `MotionValue` every frame — so the face animates
   without a React re-render. Samples are averaged and discarded; the graph ends in
   a zero-gain node, so nothing is recorded and the audio is not played twice.
+- Hover feedback on the light "primary" buttons never animates `background`: the
+  base is a gradient, so a `background` transition fades `background-color` from
+  `transparent` and the white circle blinks through the dark pill for the length of
+  the transition. They brighten an inset `box-shadow` instead.
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait

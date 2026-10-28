@@ -1,4 +1,4 @@
-import { motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion'
+import { AnimatePresence, motion, useMotionValue, useReducedMotion, useTransform } from 'framer-motion'
 import { useEffect, useRef } from 'react'
 import type { BeatStore } from '../hooks/useBeat'
 
@@ -53,6 +53,30 @@ function ClosedEyes() {
   )
 }
 
+/** Tiny solid eighth note, drawn in 16 units so it stays crisp at 9 px. */
+function NoteSingle() {
+  return (
+    <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
+      <ellipse cx="4.4" cy="12.4" rx="2.6" ry="2" transform="rotate(-20 4.4 12.4)" />
+      <rect x="6.2" y="3.2" width="1.3" height="9.2" rx="0.65" />
+      <path d="M7.5 3.1c2 .6 3.6 1.9 4 4.2-1-1.5-2.3-2.4-4-2.8V3.1Z" />
+    </svg>
+  )
+}
+
+/** Two beamed notes (♫), same drawing rules. */
+function NotePair() {
+  return (
+    <svg viewBox="0 0 16 16" width="9" height="9" fill="currentColor" aria-hidden="true">
+      <ellipse cx="3.4" cy="12.3" rx="2.4" ry="1.9" transform="rotate(-20 3.4 12.3)" />
+      <ellipse cx="11.2" cy="11.4" rx="2.4" ry="1.9" transform="rotate(-20 11.2 11.4)" />
+      <rect x="5.1" y="3.6" width="1.2" height="8.1" rx="0.6" />
+      <rect x="12.9" y="2.6" width="1.2" height="8.1" rx="0.6" />
+      <path d="M5.1 3.6 14.1 2.2v1.6L5.1 5.2z" />
+    </svg>
+  )
+}
+
 /**
  * The face: no head, just white eyes and a mouth. It floats and blinks while
  * idle, tracks the pointer when hovered, folds into closed "blissful" eyes while
@@ -71,6 +95,7 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
   const nodScaleX = useTransform(level, (value) => 1 - value * 0.05)
   const beatRotate = useTransform(beat.lean, (value) => value * 3)
   const grinOpen = useTransform(level, (value) => 1 + value * 0.4)
+  const noteScale = useTransform(level, (value) => 1 + value * 0.3)
 
   // The listener stays mounted so the eyes react to the very first move that
   // brings the pointer over the island (that move happens before `hovered`).
@@ -113,6 +138,8 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
   const mood: Mood = pressed ? 'pressed' : hovered ? 'hover' : playing ? 'bliss' : 'idle'
   const eyesShut = mood === 'bliss' || mood === 'pressed'
   const grinning = mood === 'bliss' || mood === 'hover'
+  /** Notes only while there is a song (or video) actually playing. */
+  const humming = playing && !reduced
 
   const pose = reduced
     ? { scaleX: 1, scaleY: 1, rotate: 0 }
@@ -224,6 +251,30 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
           />
         </motion.svg>
       </motion.span>
+
+      {/* A song is on: the face hums little notes up into the header. */}
+      <AnimatePresence>
+        {humming && (
+          <motion.span
+            className="smiley-notes"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: reduced ? 0 : 0.22 }}
+            style={{ scale: noteScale }}
+          >
+            <span className="smiley-note smiley-note--1">
+              <NoteSingle />
+            </span>
+            <span className="smiley-note smiley-note--2">
+              <NotePair />
+            </span>
+            <span className="smiley-note smiley-note--3">
+              <NoteSingle />
+            </span>
+          </motion.span>
+        )}
+      </AnimatePresence>
     </motion.span>
   )
 }
