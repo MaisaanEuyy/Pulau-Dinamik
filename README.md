@@ -149,6 +149,10 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] A new notification opens the card by itself for ~4 s — and if the island was
       hidden it slides back down first, then folds and hides again unless the
       pointer touched it or it is pinned
+- [x] The card that pops open is always the **Alerts** section, even if a song (or
+      the stats/keys panel) was up: the notification is what you are meant to look
+      at. The section you were on comes back when the HUD folds, unless you clicked
+      into the card during it
 - [x] The toast bridge now runs for the app's whole lifetime (it used to idle out
       30 s after a hide), so a notification can pop the island open while it is
       tucked away

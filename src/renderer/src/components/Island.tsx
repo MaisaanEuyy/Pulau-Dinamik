@@ -82,6 +82,9 @@ export function Island({ settings, info }: IslandProps) {
   const beat = useBeat(visible && playing && !reducedMotion)
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  /** The pointer (or Escape) took the card over during a notification HUD, so
+   * nothing about the session gets put back. */
+  const tookOver = useRef(false)
 
   const cancelLeave = useCallback(() => {
     if (!leaveTimer.current) return
@@ -90,6 +93,9 @@ export function Island({ settings, info }: IslandProps) {
   }, [])
 
   const collapse = useCallback(() => {
+    // Closing by hand (Escape, a click on close, the main process) also ends the
+    // notification session, so its HUD must not restore anything afterwards.
+    tookOver.current = true
     cancelLeave()
     setPinned(false)
     setOpen(false)
@@ -163,12 +169,16 @@ export function Island({ settings, info }: IslandProps) {
   pinnedRef.current = pinned
   const visibleRef = useRef(visible)
   visibleRef.current = visible
+  const tabRef = useRef<TabId>(tab)
+  tabRef.current = tab
   /** A HUD session is running (several notifications can pile into one). */
   const hudActive = useRef(false)
   /** This notification opened the card, so it may close it again. */
   const autoOpened = useRef(false)
   /** The island was tucked away when the notification came in. */
   const hiddenBefore = useRef(false)
+  /** The section the notification borrowed the card from. */
+  const previousTab = useRef<TabId>(tab)
 
   useEffect(
     () =>
@@ -177,14 +187,19 @@ export function Island({ settings, info }: IslandProps) {
         // afterwards; a second one must not forget that the island was hidden.
         if (!hudActive.current) {
           hudActive.current = true
+          tookOver.current = false
           hiddenBefore.current = !visibleRef.current
           autoOpened.current = !openRef.current && !pinnedRef.current
+          previousTab.current = tabRef.current
         }
         // A notification is pointless if the island is asleep: bring it back
         // down and open the card, so the HUD has room to be read.
         if (!visibleRef.current) void window.island.showIsland()
         setHud(notification)
         if (!pinnedRef.current) setOpen(true)
+        // Show the thing that just happened: the Alerts section, not whatever
+        // tab was up (a song, the stats…) — the notification is the news here.
+        setTab('alerts')
       }),
     []
   )
@@ -194,6 +209,11 @@ export function Island({ settings, info }: IslandProps) {
     const timer = setTimeout(() => {
       setHud(null)
       hudActive.current = false
+      // A click, a key or Escape means the user is driving now: leave the card
+      // on the section they are actually looking at.
+      if (tookOver.current) return
+      // Hand the section back the way it was found.
+      if (previousTab.current !== tabRef.current) setTab(previousTab.current)
       if (!autoOpened.current) return
       autoOpened.current = false
       if (!pinnedRef.current) setOpen(false)
@@ -279,6 +299,7 @@ export function Island({ settings, info }: IslandProps) {
         hudActive.current = false
         autoOpened.current = false
         hiddenBefore.current = false
+        tookOver.current = true
         setPressed(true)
       }}
       onPointerUp={() => setPressed(false)}
