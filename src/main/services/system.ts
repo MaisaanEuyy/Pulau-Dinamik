@@ -1,5 +1,5 @@
 import os from 'node:os'
-import si from 'systeminformation'
+import type systeminformation from 'systeminformation'
 import { IPC } from '../../shared/ipc'
 import type {
   BatteryStats,
@@ -17,10 +17,20 @@ const HISTORY_LENGTH = 60
 /** Drop the history if the panel has been closed for a while. */
 const STALE_AFTER_MS = 30_000
 
-type GraphicsData = Awaited<ReturnType<typeof si.graphics>>
-type FsList = Awaited<ReturnType<typeof si.fsSize>>
-type BatteryInfo = Awaited<ReturnType<typeof si.battery>>
-type TemperatureInfo = Awaited<ReturnType<typeof si.cpuTemperature>>
+type GraphicsData = Awaited<ReturnType<typeof systeminformation.graphics>>
+type FsList = Awaited<ReturnType<typeof systeminformation.fsSize>>
+type BatteryInfo = Awaited<ReturnType<typeof systeminformation.battery>>
+type TemperatureInfo = Awaited<ReturnType<typeof systeminformation.cpuTemperature>>
+
+/**
+ * `systeminformation` pulls in a large module graph (~5 MB in the main process)
+ * and is only needed once the System panel is opened, so load it on demand.
+ */
+let siModule: typeof systeminformation | null = null
+function si(): typeof systeminformation {
+  if (!siModule) siModule = require('systeminformation') as typeof systeminformation
+  return siModule
+}
 
 interface NetCounters {
   rx: number
@@ -337,7 +347,7 @@ async function sampleGpu(): Promise<void> {
   if (gpuBusy) return
   gpuBusy = true
   try {
-    const data = await safe(() => si.graphics())
+    const data = await safe(() => si().graphics())
     if (data) gpu = pickGpu(data)
   } finally {
     gpuBusy = false
@@ -346,7 +356,7 @@ async function sampleGpu(): Promise<void> {
 
 /** Used only when the native counters are unavailable (slow: ~1.3 s). */
 async function sampleNetworkFallback(): Promise<void> {
-  const stats = await safe(() => si.networkStats())
+  const stats = await safe(() => si().networkStats())
   const entry = stats?.[0]
   if (!entry) return
   network = {
@@ -360,9 +370,9 @@ async function sampleSlow(): Promise<void> {
   slowBusy = true
   try {
     const [fsList, batteryInfo, temperatures] = await Promise.all([
-      safe(() => si.fsSize()),
-      safe(() => si.battery()),
-      safe(() => si.cpuTemperature())
+      safe(() => si().fsSize()),
+      safe(() => si().battery()),
+      safe(() => si().cpuTemperature())
     ])
 
     if (fsList) disk = pickDisk(fsList)

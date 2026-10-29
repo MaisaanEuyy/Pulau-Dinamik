@@ -70,6 +70,12 @@ export function Island({ settings, info }: IslandProps) {
   const visible = useIslandVisibility()
   const notifications = useNotifications()
 
+  const patchSettings = useCallback((patch: Partial<Settings>) => {
+    // The main process persists the patch and broadcasts the merged settings
+    // back, which is what `App` feeds into the island.
+    void window.island.patchSettings(patch)
+  }, [])
+
   // One subscription per section, shared by the header mini view and the panel.
   // Media stays subscribed the whole time the island is on screen: the face
   // reacts to the song from any section, not just Media.
@@ -80,8 +86,8 @@ export function Island({ settings, info }: IslandProps) {
 
   const expanded = open || pinned
   const playing = media.state?.active === true && media.state.playing
-  // The face nods to the bass of whatever Windows is playing; the tap only runs
-  // while there is something to dance to.
+  // The face nods to whatever Windows is playing; the meter only runs while
+  // there is something to dance to.
   const beat = useBeat(visible && playing && !reducedMotion)
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -123,6 +129,20 @@ export function Island({ settings, info }: IslandProps) {
   useEffect(() => () => cancelLeave(), [cancelLeave])
 
   useEffect(() => window.island.onHidden(collapse), [collapse])
+
+  // The tray's "Settings…" entry asks the island to open on the Settings
+  // section. Pinning it keeps the card up while the user changes something.
+  useEffect(
+    () =>
+      window.island.onOpenSection((section) => {
+        if (!TABS.some((entry) => entry.id === section)) return
+        cancelLeave()
+        setTab(section)
+        setPinned(true)
+        setOpen(true)
+      }),
+    [cancelLeave]
+  )
 
   // Hiding is a two-step dance with the main process: the island folds toward
   // its top edge first (`island:hiding`), then the window slides up out of the
@@ -251,7 +271,13 @@ export function Island({ settings, info }: IslandProps) {
   const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0]
   const notifyPort = info?.notifyPort ?? null
 
-  const data: TabData = { media, system, keyboard, alerts: notifications }
+  const data: TabData = {
+    media,
+    system,
+    keyboard,
+    alerts: notifications,
+    settings: { value: settings, patch: patchSettings }
+  }
 
   const transition: Transition = reducedMotion
     ? { duration: 0 }
@@ -283,6 +309,7 @@ export function Island({ settings, info }: IslandProps) {
       data-expanded={expanded}
       data-pinned={pinned}
       data-hovered={hovered}
+      data-hud={Boolean(hud)}
       aria-keyshortcuts={settings?.hotkey}
       initial={false}
       animate={{

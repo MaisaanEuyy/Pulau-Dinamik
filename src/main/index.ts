@@ -5,7 +5,9 @@ import type { Settings } from '../shared/settings'
 import { syncLoginItem, applyLoginItem } from './autostart'
 import {
   getVolumeState,
+  startBeatWatcher,
   startVolumeWatcher,
+  stopBeatWatcher,
   stopVolumeWatcher
 } from './services/audio'
 import { subscribeKeyboard, unsubscribeKeyboard, isKeyboardHookActive } from './services/keyboard'
@@ -38,6 +40,7 @@ import {
 } from './services/toasts'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
+import { stopBridge } from './services/winrt'
 import {
   createIslandWindow,
   getIslandWindow,
@@ -59,6 +62,7 @@ let rendererReady = false
  * and the full panel can hold a subscription at the same time. */
 let systemSubscribers = 0
 let keyboardSubscribers = 0
+let beatSubscribers = 0
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
@@ -125,6 +129,15 @@ function registerIpc(): void {
   })
   ipcMain.handle(IPC.mediaCommand, (_event, command: MediaCommand) => {
     sendMediaCommand(command)
+  })
+
+  ipcMain.handle(IPC.beatSubscribe, () => {
+    beatSubscribers += 1
+    startBeatWatcher()
+  })
+  ipcMain.handle(IPC.beatUnsubscribe, () => {
+    beatSubscribers = Math.max(0, beatSubscribers - 1)
+    if (beatSubscribers === 0) stopBeatWatcher()
   })
 
   ipcMain.handle(IPC.keyboardSubscribe, () => {
@@ -617,8 +630,10 @@ if (!gotSingleInstanceLock) {
     stopSystemSampler()
     stopMediaHelper()
     stopToastHelper()
+    stopBridge()
     stopNotificationServer()
     stopVolumeWatcher()
+    stopBeatWatcher()
     unsubscribeKeyboard()
     globalShortcut.unregisterAll()
     destroyTray()

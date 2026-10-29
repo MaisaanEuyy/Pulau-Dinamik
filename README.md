@@ -20,14 +20,14 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 
 **Milestone 2 — motion, tabs and glass** ✅
 
-- [x] Spring morph between the 300×46 pill and the 420×260 card
-- [x] The window keeps its 420×260 footprint for its entire lifetime and is only
+- [x] Spring morph between the 300×46 pill and the 468×260 card
+- [x] The window keeps its 468×260 footprint for its entire lifetime and is only
       *shaped* down to the pill when collapsed — no resize, so no blink
 - [x] Click the pill to open, click the header again to pin, `Esc` to collapse,
       blur auto-collapses, unpinned cards close 280 ms after the pointer leaves
 - [x] Pin and hide buttons, live clock in the pill
-- [x] Four sections (Media / System / Keys / Alerts) with a sliding tab indicator,
-      `←`/`→` to switch
+- [x] Five sections (Media / System / Keys / Alerts / Settings) with a sliding
+      tab indicator, `←`/`→` to switch
 - [x] Layered glass styling: specular top edge, radial sheen, inset shading
 - [x] `npm run smoke` now also checks open, pin, Esc collapse and state reset on hide
 
@@ -49,15 +49,16 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 **Milestone 4 — media / now playing** ✅
 
 - [x] Reads the Windows SMTC session (`GlobalSystemMediaTransportControlsSessionManager`)
-      through a persistent PowerShell 5.1 WinRT helper (`src/main/services/smtc.ps1`)
+      through the shared PowerShell 5.1 WinRT helper (`src/main/services/winrt.ps1`)
 - [x] Track title, artist, source app and cover art (artwork is optional — some
       players/browsers expose none, so the panel falls back to a music icon)
 - [x] Previous / play-pause / next buttons, disabled when the session does not
       support them; the panel follows play state changes made outside the island
-- [x] Helper starts lazily on the first Media subscription, speaks one JSON state
-      line per change over stdout and takes `toggle`/`next`/`previous` on stdin
-- [x] Idles out 30 s after the panel closes (and on hide/quit) so no PowerShell
-      process lingers
+- [x] The shared helper starts lazily on the first Media/Toast subscription,
+      speaks one JSON state line per change over stdout and takes
+      `toggle`/`next`/`previous` on stdin
+- [x] Media polling is switched off 30 s after the panel closes (and on
+      hide/quit), so an idle island only pays for the toast listener
 - [x] `npm run smoke` boots the helper and reports the detected session
 
 **Revisions — volume HUD & album ambient** ✅
@@ -125,8 +126,8 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 **Revisions — Windows toast mirroring** ✅
 
 - [x] The Alerts section now mirrors **real Windows notifications** (WhatsApp,
-      Chrome, Outlook, Telegram, Discord …) instead of only the local API: a second
-      PowerShell helper reads the notification centre through the WinRT
+      Chrome, Outlook, Telegram, Discord …) instead of only the local API: the
+      shared PowerShell helper reads the notification centre through the WinRT
       `UserNotificationListener` and forwards each toast as it arrives
 - [x] Each toast lands in the same list/HUD/badge as `POST /notify`, labelled with
       the app that sent it ("Google Chrome", "Outlook", …)
@@ -137,13 +138,12 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] `npm run smoke` reports `toasts.access` and how many notification-centre
       entries the bridge imported
 
-**Revisions — bass nod, tighter face & pop-open notifications** ✅
+**Revisions — music nod, tighter face & pop-open notifications** ✅
 
-- [x] The face now nods to the song itself instead of a fixed timer: a Windows
-      system-audio loopback tap reads the kick/bass band and drives a nod, a squash
-      and an alternating lean, so it bobs and dances with what is actually playing
-      (samples are averaged per frame, never recorded, and the graph is wired to a
-      muted gain so the audio is not played twice)
+- [x] The face now nods to the song itself instead of a fixed timer: the default
+      output's Core Audio peak meter drives a nod, a squash and an alternating lean,
+      so it bobs and dances with what is actually playing (one cheap COM read per
+      frame in the main process — no capture stream, nothing recorded)
 - [x] The eyes travel less (about half a pixel) and sit closer to the mouth, so
       pointer tracking reads as a glance instead of the face pulling apart
 - [x] A new notification opens the card by itself for ~4 s — and if the island was
@@ -171,7 +171,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Packaging: `npm run dist` builds an NSIS installer (desktop + Start Menu
       shortcut, per-user install, no admin prompt) — see **Build installer**
 
-Next: Milestone 7 — settings window.
+**Revisions — settings menu & readable notifications** ✅
+
+- [x] New **Settings** section in the tabbar: light/dark appearance, start with
+      Windows, and the current toggle hotkey
+- [x] The Appearance switch flips the whole island — glass, text, cards, buttons,
+      smiley and notification HUD — between the dark chrome and a light one, and
+      the choice is persisted in `settings.json` (`theme`)
+- [x] The tray's **Settings…** entry now opens the island, pinned on that section
+- [x] The card is wider (468 px) and a notification peeking in the header wraps
+      its title (up to two lines) and message (up to three lines) instead of
+      cutting it off with an ellipsis; the header grows while the peek is up
+- [x] The Alerts list wraps messages instead of truncating them, so the history
+      stays readable too
+
+Next: per-app notification filters.
 
 ## Try it
 
@@ -196,6 +210,9 @@ npm run dev
 - The **Alerts** section mirrors your Windows notifications and also lists
   anything posted through the local API (see below); it keeps a red dot on the tab
   while new ones are waiting.
+- The **Settings** section switches the island between dark and light, toggles
+  start-with-Windows and shows the current hotkey; the tray's **Settings…** entry
+  opens it from anywhere.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
 
@@ -204,17 +221,18 @@ npm run dev
 ### Windows notifications
 
 The island mirrors the notifications Windows already shows — WhatsApp, Chrome,
-Outlook, Telegram, Discord, whatever sends a toast. A small PowerShell helper
-reads the notification centre through the WinRT `UserNotificationListener`, and
-every toast that arrives while it runs is forwarded to the Alerts section,
-labelled with the app that sent it.
+Outlook, Telegram, Discord, whatever sends a toast. The shared PowerShell helper
+(the same one that talks to SMTC) reads the notification centre through the WinRT
+`UserNotificationListener`, and every toast that arrives while it runs is
+forwarded to the Alerts section, labelled with the app that sent it.
 
 - Windows asks for permission the first time ("let this app read your
   notifications"). If it is denied the Alerts section says so instead of staying
   silently empty — re-enable it in **Settings → Privacy & security →
   Notifications**.
-- The helper runs for the app's whole lifetime — a notification has to be able to
-  pop the island open while it is tucked away — and stops when the app quits.
+- The shared helper runs for the app's whole lifetime — a notification has to be
+  able to pop the island open while it is tucked away — and stops when the app
+  quits.
 - The first pass after the bridge starts imports what is already sitting in the
   notification centre, exactly once: entries are de-duplicated by `app +
   notification id + timestamp`, and anything older than the app start is ignored.
@@ -280,7 +298,7 @@ shortcut and a Start Menu entry.
   notification: those three need the tray PNGs from `extraResources` and the koffi
   native addon from `asarUnpack`, and they stay silent if either is missing.
 - Uninstalling keeps `%APPDATA%\Dynamic Island KW` (your settings plus the
-  generated PowerShell helpers).
+  generated PowerShell helper).
 - The first build downloads Electron and the NSIS tooling into
   `%LOCALAPPDATA%\electron-builder\Cache`, so give it a few minutes and a network
   connection.
@@ -291,13 +309,13 @@ shortcut and a Start Menu entry.
 src/
   main/                 Electron main process
     index.ts            lifecycle, single instance, hotkey, IPC
-    services/media.ts   SMTC helper lifecycle, JSON line parser, commands
-    services/smtc.ps1   WinRT now-playing bridge (PowerShell 5.1)
-    services/audio.ts   Core Audio master volume/ mute watcher (koffi COM)
+    services/media.ts   media subscription lifecycle, JSON parser, commands
+    services/winrt.ts   shared WinRT helper lifecycle + message dispatch
+    services/winrt.ps1  SMTC + UserNotificationListener bridge (PowerShell 5.1)
+    services/audio.ts   Core Audio volume/mute + peak meter (koffi COM)
     services/keyboard.ts lock/modifier state + key-down hook (koffi user32)
     services/notifications.ts local HTTP API (POST /notify) + in-memory list
-    services/toasts.ts  Windows notification-centre bridge lifecycle + parser
-    services/toasts.ps1 WinRT UserNotificationListener bridge (PowerShell 5.1)
+    services/toasts.ts  Windows notification-centre parser + subscription
     services/system.ts  system sampler (os + koffi + systeminformation)
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
@@ -318,7 +336,7 @@ resources/              generated icons (committed)
   `nodeIntegration: false`.
 - The window has `movable: false` and `resizable: false`; position is derived
   from the display work area plus `topOffset`.
-- The window is created at the expanded 420×260 footprint and never moves or
+- The window is created at the expanded 468×260 footprint and never moves or
   resizes. `island:set-expanded` only changes the window **shape**
   (`win.setShape`): the full card while open, the 300×46 pill rect while
   collapsed, so clicks around the pill fall through to the desktop. Resizing a
@@ -350,13 +368,13 @@ resources/              generated icons (committed)
   before the app started so old history does not flood the list. It stays up for
   the app's lifetime — a hidden island still has to be able to pop open — and only
   the renderer unmounting (quit) stops it.
-- The bass nod taps the Windows loopback device from the renderer: `getUserMedia`
-  with `chromeMediaSource: 'desktop'` returns a `System Audio` track plus a screen
-  video track that is stopped immediately. An `AnalyserNode` (fftSize 1024) averages
-  bins 1–5 (~47–280 Hz), an auto-gain follows the local floor/ceiling of that band,
-  and the result is written to a `MotionValue` every frame — so the face animates
-  without a React re-render. Samples are averaged and discarded; the graph ends in
-  a zero-gain node, so nothing is recorded and the audio is not played twice.
+- The face's nod reads the default output's peak level from Core Audio
+  (`IAudioMeterInformation::GetPeakValue`) in the main process — one cheap COM call
+  per frame — and sends it to the renderer over IPC only while the face is on
+  screen. The renderer applies the same floor/ceiling auto-gain and smoothing as
+  before and writes the result to a `MotionValue` every sample, so the face
+  animates without a React re-render. Nothing is captured or recorded, and no
+  desktop-capture graph or audio utility process is involved.
 - Hover feedback on the light "primary" buttons never animates `background`: the
   base is a gradient, so a `background` transition fades `background-color` from
   `transparent` and the white circle blinks through the dark pill for the length of
@@ -371,16 +389,21 @@ resources/              generated icons (committed)
   ~1.3 s per call), so the 1 s path uses `os` for CPU/RAM and raw `GetIfTable`
   counters through **koffi** for network. Only GPU (5 s), disk/battery/temp (15 s)
   use `systeminformation`. Sampling is paused unless the System tab is visible.
-- SMTC has no Node binding, so the media service runs the WinRT projection in a
-  background **Windows PowerShell 5.1** process (`-NonInteractive`, hidden) and
-  talks JSON-over-stdio with it. The script is inlined into the bundle with
-  `?raw` and written to `%APPDATA%\Dynamic Island KW\smtc-helper.ps1` at runtime.
-  Polling is ~750 ms, commands are picked up every 50 ms, and the process is
-  killed 30 s after the last subscriber goes away.
+- SMTC and Windows' notification centre have no Node binding, so both run in a
+  single background **Windows PowerShell 5.1** process (`-NonInteractive`,
+  hidden) and talk JSON-over-stdio with it. The script is inlined into the
+  bundle with `?raw` and written to
+  `%APPDATA%\Dynamic Island KW\winrt-helper.ps1` at runtime. One process instead
+  of one per feature saves a whole CLR + PowerShell baseline (~45 MB); on 64-bit
+  Windows the helper is launched from `SysWOW64` (32-bit), which halves its
+  private memory again (~33 MB vs ~52 MB) without changing the WinRT APIs.
+  Media polling (~750 ms) is gated by `media:on` / `media:off`, so after the
+  media panel idles out the process only keeps the toast listener alive.
 - Cover art arrives as an `IRandomAccessStreamReference`; the helper converts it
   once per track to a `data:` URL (skipping anything over 4 MB) so the renderer
-  never touches the filesystem. PowerShell cannot bind WinRT streams to method
-  parameters, so the code hands the stream to
+  never touches the filesystem. The cache keeps only the last four covers, so a
+  long listening session cannot grow the helper's heap. PowerShell cannot bind
+  WinRT streams to method parameters, so the code hands the stream to
   `WindowsRuntimeStreamExtensions.AsStreamForRead` through reflection.
 - `koffi` ships a prebuilt N-API binary; when packaging, its `.node` file must be
   unpacked from the asar archive (Milestone 7).
@@ -401,11 +424,25 @@ resources/              generated icons (committed)
   because the thread-local toggle bits can go stale in a background app.
 - The mini views share the panel subscriptions (`useMedia`, `useSystemStats`,
   `useKeyboard`, `useNotifications` are owned by the island), so nothing is
-  sampled twice. The media helper subscribes whenever the island is *visible*
-  (the face reacts to the song on every tab) and idles out 30 s after the island
-  is hidden; System and Keys still subscribe only while their own section is up.
+  sampled twice. The media side of the shared helper subscribes whenever the
+  island is *visible* (the face reacts to the song on every tab) and idles out
+  30 s after the island is hidden; System and Keys still subscribe only while
+  their own section is up.
+- **Memory:** the WinRT work is one 32-bit PowerShell process (~31 MB instead of
+  two 64-bit processes at ~97 MB), and `systeminformation` only loads when the
+  System tab is opened (saving a few MB in the main process otherwise). The dancing
+  face reads Core Audio's peak meter, so a song adds no capture buffers and no
+  audio utility process. What remains is Chromium's process baseline: ~50 MB for
+  the renderer and ~55–80 MB for the GPU process (hardware-accelerated compositing,
+  which keeps the animation smooth); the renderer's own JS heap is only ~7 MB.
+  Measured on the dev machine: ~158 MB total with no media, ~200 MB while a song
+  is on the mini bar.
 - CPU temperature needs admin rights or an OHM-compatible sensor; when
   `systeminformation` returns `null` the UI shows thread count instead.
-- Placeholder menu entry “Settings…” is wired up in Milestone 7.
+- The Settings section edits the same `settings.json` the tray writes; the theme
+  is applied by setting `data-theme` on `<html>`, so one attribute repaints the
+  whole island (including the light smiley ink) without a reload. The card was
+  widened to 468 px for exactly that reason: a peeking notification wraps its
+  title and message rather than ending in an ellipsis.
 - If `npm install` finishes without `node_modules/electron/dist`, download the
   runtime manually: `node node_modules/electron/install.js`.

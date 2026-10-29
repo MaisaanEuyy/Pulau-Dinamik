@@ -1,8 +1,20 @@
-# Windows SMTC bridge for the media panel.
+# Windows WinRT bridge for the media panel and the Alerts panel.
 #
-# Prints one JSON object per line on stdout and accepts plain-text commands on
-# stdin (`toggle`, `next`, `previous`, `play`, `pause`). Kept alive by the main
-# process so each poll costs a few milliseconds instead of a process start.
+# A single long-lived PowerShell 5.1 process serves both features: SMTC cover
+# art/playback state and Windows' notification centre. Two separate helpers
+# would double the CLR + PowerShell baseline (the largest chunk of the app's
+# memory use), so they share one process and one stdin/stdout pipe.
+#
+# stdout: one JSON object per line
+#   {"type":"access","access":"Allowed"}
+#   {"type":"toast","key":"…","app":"Discord","texts":[…],"created":1699…}
+#   {"type":"state","active":true,"playing":true,…}
+#
+# stdin: `media:on` / `media:off` gates the media polling; while it is on the
+# plain commands `toggle`, `next`, `previous`, `play`, `pause` are accepted.
+#
+# Nothing is written to disk and no notification content ever leaves the
+# machine. The helper exits when the main process closes its stdin pipe.
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -27,6 +39,33 @@ function Await($operation, $type) {
   $netTask.Result
 }
 
+# ---------------------------------------------------------------- notifications
+# A failure here must not take the media half down with it.
+$listener = $null
+$toastAccess = $false
+try {
+  [Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications.Management, ContentType = WindowsRuntime] | Out-Null
+  [Windows.UI.Notifications.NotificationKinds, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+
+  $listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
+  $access = $listener.GetAccessStatus()
+
+  # First run: Windows asks the user once ("let this app read your notifications").
+  if ("$access" -ne 'Allowed') {
+    try {
+      $access = Await ($listener.RequestAccessAsync()) ([Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus])
+    } catch {
+      $access = 'Denied'
+    }
+  }
+
+  Send @{ type = 'access'; access = "$access" }
+  $toastAccess = ("$access" -eq 'Allowed')
+} catch {
+  Send @{ type = 'access'; access = 'Denied' }
+}
+
+# ----------------------------------------------------------------------- media
 [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionManager, Windows.Media.Control, ContentType = WindowsRuntime] | Out-Null
 [Windows.Storage.Streams.IRandomAccessStreamWithContentType, Windows.Storage.Streams, ContentType = WindowsRuntime] | Out-Null
 $propsType = [Windows.Media.Control.GlobalSystemMediaTransportControlsSessionMediaProperties]
@@ -40,7 +79,9 @@ $asStreamForRead = [System.IO.WindowsRuntimeStreamExtensions].GetMethods() | Whe
 } | Select-Object -First 1
 
 $script:manager = $null
+# The UI only ever shows the current track, so a handful of covers is plenty.
 $artCache = @{}
+$artCacheLimit = 4
 
 function Get-Manager {
   if ($null -eq $script:manager) {
@@ -116,7 +157,7 @@ function Read-Artwork($reference, [string]$key) {
     if ($bytes[0] -eq 0xFF -and $bytes[1] -eq 0xD8) { $mime = 'image/jpeg' }
 
     $url = 'data:' + $mime + ';base64,' + [Convert]::ToBase64String($bytes)
-    if ($artCache.Count -gt 24) { $artCache.Clear() }
+    if ($artCache.Count -ge $artCacheLimit) { $artCache.Clear() }
     $artCache[$key] = $url
     return $url
   } catch {
@@ -176,11 +217,25 @@ function Invoke-Command([string]$command) {
   }
 }
 
+# ------------------------------------------------------------------------ loop
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
-$lastJson = ''
+$mediaEnabled = $false
+$seen = @{}
+$seenOrder = New-Object System.Collections.Queue
 $ticks = 0
+$lastJson = ''
 $forceAt = 0
+$lastGc = 0
+
+function Add-Seen([string]$key) {
+  $seen[$key] = $true
+  $seenOrder.Enqueue($key)
+  # Bound the history: notification keys are tiny, but the helper lives for days.
+  while ($seenOrder.Count -gt 512) {
+    $seen.Remove([string]$seenOrder.Dequeue())
+  }
+}
 
 try {
   while ($true) {
@@ -188,13 +243,71 @@ try {
     if ($pending.IsCompleted) {
       $line = $pending.Result
       if ($null -eq $line) { break }
-      Invoke-Command $line.Trim().ToLowerInvariant()
+      $command = $line.Trim().ToLowerInvariant()
+
+      if ($command -eq 'media:on') {
+        if (-not $mediaEnabled) {
+          $mediaEnabled = $true
+          $script:manager = $null
+          $lastJson = ''
+          $forceAt = [Environment]::TickCount + 120
+        }
+      } elseif ($command -eq 'media:off') {
+        if ($mediaEnabled) {
+          $mediaEnabled = $false
+          $script:manager = $null
+          $artCache.Clear()
+          [GC]::Collect()
+        }
+      } elseif ($mediaEnabled -and $command) {
+        Invoke-Command $command
+        $forceAt = [Environment]::TickCount + 120
+        $lastJson = ''
+      }
+
       $pending = $stdin.ReadLineAsync()
-      $forceAt = [Environment]::TickCount + 120
-      $lastJson = ''
     }
 
-    if ((($ticks % 15) -eq 0) -or ($forceAt -ne 0 -and [Environment]::TickCount -ge $forceAt)) {
+    # Notifications: ~600 ms between reads.
+    if ($toastAccess -and (($ticks % 12) -eq 0)) {
+      try {
+        $operation = $listener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast)
+        $items = Await $operation ([System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]])
+
+        foreach ($item in $items) {
+          $created = $item.CreationTime.ToUnixTimeMilliseconds()
+          $key = "$($item.AppInfo.AppUserModelId)|$($item.Id)|$created"
+          if ($seen.ContainsKey($key)) { continue }
+          Add-Seen $key
+
+          $texts = New-Object System.Collections.ArrayList
+          try {
+            $binding = $item.Notification.Visual.Bindings[0]
+            foreach ($element in $binding.GetTextElements()) {
+              [void]$texts.Add([string]$element.Text)
+            }
+          } catch {
+            # Some toasts carry no text binding at all (image/progress only).
+          }
+
+          $app = [string]$item.AppInfo.DisplayInfo.DisplayName
+          if ([string]::IsNullOrWhiteSpace($app)) { $app = [string]$item.AppInfo.AppUserModelId }
+
+          Send @{
+            type = 'toast'
+            key = $key
+            app = $app
+            texts = @($texts)
+            created = $created
+          }
+        }
+      } catch {
+        # Sleep/resume or a locked notification store: keep the loop alive.
+      }
+    }
+
+    # Media: ~750 ms, plus an immediate read after a command or `media:on`.
+    if ($mediaEnabled -and ((($ticks % 15) -eq 0) -or ($forceAt -ne 0 -and [Environment]::TickCount -ge $forceAt))) {
       try {
         $state = Read-State
         $json = $state | ConvertTo-Json -Compress -Depth 6
@@ -207,6 +320,12 @@ try {
         # Sleep/resume or a closed player can invalidate the manager.
         $script:manager = $null
       }
+    }
+
+    # Hand the CLR a chance to release heap once a minute.
+    if (($ticks - $lastGc) -ge 1200) {
+      $lastGc = $ticks
+      [GC]::Collect()
     }
 
     Start-Sleep -Milliseconds 50

@@ -26,6 +26,8 @@ export interface IslandApi {
   setExpanded(expanded: boolean): Promise<void>
   /** Current visibility of the island window (false while hidden in the tray). */
   getVisibility(): Promise<boolean>
+  /** Fired when the tray (or another entry point) asks for a section to open. */
+  onOpenSection(callback: (section: string) => void): () => void
   /** Fired on show/hide so panels can pause sampling while invisible. */
   onVisibilityChanged(callback: (visible: boolean) => void): () => void
   /** Starts the sampler if needed and returns the latest snapshot. */
@@ -50,6 +52,12 @@ export interface IslandApi {
   onMediaUpdate(callback: (state: MediaState) => void): () => void
   /** Fired whenever the system volume or mute state changes. */
   onVolumeUpdate(callback: (state: VolumeState) => void): () => void
+  /** Starts the Core Audio peak meter that drives the beat visualiser. */
+  subscribeBeat(): Promise<void>
+  /** Stops the peak meter. */
+  unsubscribeBeat(): Promise<void>
+  /** Fired ~60×/s with the current output peak (0..1). */
+  onBeatUpdate(callback: (peak: number) => void): () => void
   /** Starts the keyboard watcher if needed and returns the current state. */
   subscribeKeyboard(): Promise<KeyboardState | null>
   /** Stops the watcher and removes the keyboard hook. */

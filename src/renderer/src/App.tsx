@@ -28,6 +28,12 @@ export default function App() {
     }
   }, [])
 
+  // The whole stylesheet keys off this attribute, so switching the setting
+  // repaints the island without a reload.
+  useEffect(() => {
+    document.documentElement.dataset.theme = settings?.theme ?? 'dark'
+  }, [settings?.theme])
+
   return (
     <div className="island-root">
       <Island settings={settings} info={info} />

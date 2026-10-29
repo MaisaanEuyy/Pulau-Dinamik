@@ -1,3 +1,8 @@
+/** Colour scheme of the island. */
+export type ThemeMode = 'dark' | 'light'
+
+export const THEME_MODES: readonly ThemeMode[] = ['dark', 'light']
+
 /**
  * Persisted user settings. Keep this list flat and small – it is written to
  * `%APPDATA%/dynamic-island-kw/settings.json`.
@@ -11,11 +16,14 @@ export interface Settings {
   hotkey: string
   /** Start the app when the user signs in to Windows. */
   launchAtLogin: boolean
+  /** Light or dark island chrome. */
+  theme: ThemeMode
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   topOffset: 6,
   displayId: null,
   hotkey: 'Control+Alt+Space',
-  launchAtLogin: false
+  launchAtLogin: false,
+  theme: 'dark'
 }

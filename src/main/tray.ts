@@ -7,6 +7,7 @@ import {
   type MenuItemConstructorOptions
 } from 'electron'
 import { join } from 'node:path'
+import { IPC } from '../shared/ipc'
 import { applyLoginItem } from './autostart'
 import { getSettings, patchSettings } from './settings'
 import { getIslandWindow, hideIsland, repositionIsland, showIsland } from './windows/island'
@@ -34,6 +35,14 @@ function selectDisplay(displayId: number | null): void {
 function isVisible(): boolean {
   const win = getIslandWindow()
   return Boolean(win && !win.isDestroyed() && win.isVisible())
+}
+
+/** Brings the island back down (if tucked away) and opens a card section. */
+function openSection(section: string): void {
+  showIsland()
+  const win = getIslandWindow()
+  if (!win || win.isDestroyed()) return
+  win.webContents.send(IPC.islandOpenSection, section)
 }
 
 function buildMenu(): Menu {
@@ -73,7 +82,7 @@ function buildMenu(): Menu {
         applyLoginItem(enabled)
       }
     },
-    { label: 'Settings…', enabled: false },
+    { label: 'Settings…', click: () => openSection('settings') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   ])

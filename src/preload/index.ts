@@ -16,6 +16,13 @@ const api: IslandApi = {
   showIsland: () => ipcRenderer.invoke(IPC.islandShow) as Promise<void>,
   setExpanded: (expanded) => ipcRenderer.invoke(IPC.islandSetExpanded, expanded) as Promise<void>,
   getVisibility: () => ipcRenderer.invoke(IPC.islandGetVisible) as Promise<boolean>,
+  onOpenSection: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, section: string): void => callback(section)
+    ipcRenderer.on(IPC.islandOpenSection, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.islandOpenSection, handler)
+    }
+  },
   subscribeSystem: () => ipcRenderer.invoke(IPC.systemSubscribe) as Promise<SystemSnapshot | null>,
   unsubscribeSystem: () => ipcRenderer.invoke(IPC.systemUnsubscribe) as Promise<void>,
   subscribeMedia: () => ipcRenderer.invoke(IPC.mediaSubscribe) as Promise<MediaState | null>,
@@ -81,6 +88,15 @@ const api: IslandApi = {
     ipcRenderer.on(IPC.volumeUpdate, handler)
     return () => {
       ipcRenderer.removeListener(IPC.volumeUpdate, handler)
+    }
+  },
+  subscribeBeat: () => ipcRenderer.invoke(IPC.beatSubscribe) as Promise<void>,
+  unsubscribeBeat: () => ipcRenderer.invoke(IPC.beatUnsubscribe) as Promise<void>,
+  onBeatUpdate: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, peak: number): void => callback(peak)
+    ipcRenderer.on(IPC.beatUpdate, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.beatUpdate, handler)
     }
   },
   subscribeKeyboard: () =>

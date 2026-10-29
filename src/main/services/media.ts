@@ -1,55 +1,34 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { app } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { MediaCommand, MediaState } from '../../shared/media'
-import smtcScript from './smtc.ps1?raw'
 import { getIslandWindow } from '../windows/island'
+import {
+  ensureBridge,
+  onBridgeExit,
+  onBridgeMessage,
+  onBridgeStart,
+  releaseBridge,
+  retainBridge,
+  sendBridge
+} from './winrt'
 
-const SCRIPT_NAME = 'smtc-helper.ps1'
 /** Keep the warm helper around for a while so reopening the panel is instant. */
 const IDLE_STOP_MS = 30_000
 const FIRST_STATE_TIMEOUT_MS = 8_000
 
-let helper: ChildProcessWithoutNullStreams | null = null
 let latest: MediaState | null = null
 let subscribers = 0
 let idleTimer: NodeJS.Timeout | null = null
 let firstStateWaiters: Array<() => void> = []
-let logBuffer = ''
-
-function scriptPath(): string {
-  const dir = app.getPath('userData')
-  mkdirSync(dir, { recursive: true })
-  return join(dir, SCRIPT_NAME)
-}
-
-/** Writes the inlined script next to the settings file so PowerShell can run it. */
-function ensureScript(): string {
-  const path = scriptPath()
-  try {
-    if (readFileSync(path, 'utf8') !== smtcScript) writeFileSync(path, smtcScript, 'utf8')
-  } catch {
-    writeFileSync(path, smtcScript, 'utf8')
-  }
-  return path
-}
+/** Whether this service currently holds the shared WinRT helper open. */
+let holding = false
+/** Whether the helper has been told to poll SMTC. */
+let mediaOn = false
 
 function asText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
 }
 
-function parseState(line: string): MediaState | null {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(line)
-  } catch {
-    return null
-  }
-  if (!parsed || typeof parsed !== 'object') return null
-
-  const raw = parsed as Record<string, unknown>
+function parseState(raw: Record<string, unknown>): MediaState | null {
   if (raw.type !== 'state' || typeof raw.active !== 'boolean' || typeof raw.playing !== 'boolean') {
     return null
   }
@@ -96,83 +75,42 @@ function settleFirstState(): void {
   for (const resolve of waiters) resolve()
 }
 
-function handleLine(line: string): void {
-  const next = parseState(line)
+onBridgeMessage((raw) => {
+  if (raw.type !== 'state') return
+  const next = parseState(raw)
   if (!next) return
   if (sameState(latest, next)) return
   latest = next
   emit()
   settleFirstState()
-}
+})
 
-function killHelper(): void {
-  const proc = helper
-  helper = null
+// A restarted helper has forgotten that the media panel is open.
+onBridgeStart(() => {
+  if (mediaOn) sendBridge('media:on')
+})
+
+onBridgeExit(() => {
   latest = null
-  if (!proc) return
-  try {
-    proc.stdin.end()
-  } catch {
-    // Already gone.
-  }
-  try {
-    proc.kill()
-  } catch {
-    // Already gone.
-  }
+})
+
+function activate(): void {
+  if (mediaOn) return
+  mediaOn = true
+  holding = true
+  retainBridge()
+  sendBridge('media:on')
 }
 
-function startHelper(): void {
-  if (helper) return
-
-  const path = ensureScript()
-  const proc = spawn(
-    'powershell.exe',
-    [
-      '-NoLogo',
-      '-NoProfile',
-      '-NonInteractive',
-      '-ExecutionPolicy',
-      'Bypass',
-      '-File',
-      path
-    ],
-    { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }
-  )
-  helper = proc
-  logBuffer = ''
-
-  proc.stdout.setEncoding('utf8')
-  proc.stdout.on('data', (chunk: string) => {
-    logBuffer += chunk
-    let newline = logBuffer.indexOf('\n')
-    while (newline >= 0) {
-      const line = logBuffer.slice(0, newline).replace(/\r$/, '').trim()
-      logBuffer = logBuffer.slice(newline + 1)
-      if (line) handleLine(line)
-      newline = logBuffer.indexOf('\n')
-    }
-  })
-
-  proc.stderr.setEncoding('utf8')
-  proc.stderr.on('data', (chunk: string) => {
-    console.warn('[media] helper:', chunk.trim())
-  })
-
-  proc.on('error', (error) => {
-    console.warn('[media] helper failed to start', error)
-    if (helper === proc) helper = null
-    settleFirstState()
-  })
-
-  proc.on('exit', (code) => {
-    if (code !== 0 && code !== null) console.warn('[media] helper exited with', code)
-    if (helper === proc) {
-      helper = null
-      latest = null
-    }
-    settleFirstState()
-  })
+function deactivate(): void {
+  if (!mediaOn) return
+  mediaOn = false
+  latest = null
+  sendBridge('media:off')
+  if (holding) {
+    holding = false
+    releaseBridge(0)
+  }
 }
 
 /** Waits for the helper's first state line (cold start takes a moment). */
@@ -191,6 +129,15 @@ function waitForFirstState(): Promise<MediaState | null> {
   })
 }
 
+function scheduleStop(): void {
+  if (idleTimer) clearTimeout(idleTimer)
+  idleTimer = setTimeout(() => {
+    idleTimer = null
+    if (subscribers > 0) return
+    deactivate()
+  }, IDLE_STOP_MS)
+}
+
 /** Starts the helper if needed and resolves with the latest known state. */
 export function subscribeMedia(): Promise<MediaState | null> {
   subscribers += 1
@@ -198,7 +145,10 @@ export function subscribeMedia(): Promise<MediaState | null> {
     clearTimeout(idleTimer)
     idleTimer = null
   }
-  startHelper()
+  // Covers the case where the shared process restarted (or was stopped while
+  // this feature still had a hold).
+  ensureBridge()
+  activate()
   return waitForFirstState()
 }
 
@@ -206,21 +156,14 @@ export function subscribeMedia(): Promise<MediaState | null> {
 export function unsubscribeMedia(): void {
   subscribers = Math.max(0, subscribers - 1)
   if (subscribers > 0) return
-  if (idleTimer) clearTimeout(idleTimer)
-  idleTimer = setTimeout(() => {
-    idleTimer = null
-    if (subscribers === 0) killHelper()
-  }, IDLE_STOP_MS)
+  scheduleStop()
 }
 
 /** Safety net for hiding the whole island while the panel is still mounted. */
 export function releaseMedia(): void {
   subscribers = 0
   if (idleTimer) return
-  idleTimer = setTimeout(() => {
-    idleTimer = null
-    if (subscribers === 0) killHelper()
-  }, IDLE_STOP_MS)
+  scheduleStop()
 }
 
 export function getMediaState(): MediaState | null {
@@ -228,13 +171,9 @@ export function getMediaState(): MediaState | null {
 }
 
 export function sendMediaCommand(command: MediaCommand): void {
-  if (!helper) return
+  if (!mediaOn) return
   if (command !== 'toggle' && command !== 'next' && command !== 'previous') return
-  try {
-    helper.stdin.write(`${command}\n`)
-  } catch {
-    // Broken pipe: the exit handler will clean up.
-  }
+  sendBridge(command)
 }
 
 export function stopMediaHelper(): void {
@@ -243,5 +182,5 @@ export function stopMediaHelper(): void {
     clearTimeout(idleTimer)
     idleTimer = null
   }
-  killHelper()
+  deactivate()
 }

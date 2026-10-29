@@ -13,6 +13,8 @@ export const IPC = {
   islandShowing: 'island:showing',
   islandVisibility: 'island:visibility',
   islandGetVisible: 'island:get-visible',
+  /** Main → renderer: open the card on a given section (tray "Settings…"). */
+  islandOpenSection: 'island:open-section',
   systemSubscribe: 'system:subscribe',
   systemUnsubscribe: 'system:unsubscribe',
   systemUpdate: 'system:update',
@@ -21,6 +23,9 @@ export const IPC = {
   mediaCommand: 'media:command',
   mediaUpdate: 'media:update',
   volumeUpdate: 'volume:update',
+  beatSubscribe: 'beat:subscribe',
+  beatUnsubscribe: 'beat:unsubscribe',
+  beatUpdate: 'beat:update',
   keyboardSubscribe: 'keyboard:subscribe',
   keyboardUnsubscribe: 'keyboard:unsubscribe',
   keyboardUpdate: 'keyboard:update',

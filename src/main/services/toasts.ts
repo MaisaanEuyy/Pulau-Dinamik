@@ -1,47 +1,37 @@
-import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process'
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
-import { app } from 'electron'
 import { IPC } from '../../shared/ipc'
 import type { ToastAccess } from '../../shared/toast'
-import toastsScript from './toasts.ps1?raw'
 import { getIslandWindow } from '../windows/island'
 import { pushNotification } from './notifications'
+import { onBridgeMessage, releaseBridge, retainBridge } from './winrt'
 
-const SCRIPT_NAME = 'toast-helper.ps1'
 /** The listener runs for the app's lifetime: a hidden island still pops open for
  * notifications. The idle stop only applies once the renderer unsubscribes. */
 const IDLE_STOP_MS = 30_000
+/** Windows notification keys are tiny, but the app can run for days. */
+const SEEN_LIMIT = 512
 
-let helper: ChildProcessWithoutNullStreams | null = null
 let subscribers = 0
 let idleTimer: NodeJS.Timeout | null = null
 let access: ToastAccess = 'unknown'
-let logBuffer = ''
+/** Whether this service currently holds the shared WinRT helper open. */
+let holding = false
 
 /** Windows toast keys (`aumid|id|created`) we already forwarded. */
 const seen = new Set<string>()
+const seenOrder: string[] = []
 /**
  * Toasts that landed before the app started are history, not news: they would
- * flood the list on every launch. Everything newer (including the ones that
- * arrived while the island was hidden) is imported once.
+ * flood the list on every launch.
  */
 const importAfter = Date.now()
 
-function scriptPath(): string {
-  const dir = app.getPath('userData')
-  mkdirSync(dir, { recursive: true })
-  return join(dir, SCRIPT_NAME)
-}
-
-function ensureScript(): string {
-  const path = scriptPath()
-  try {
-    if (readFileSync(path, 'utf8') !== toastsScript) writeFileSync(path, toastsScript, 'utf8')
-  } catch {
-    writeFileSync(path, toastsScript, 'utf8')
+function markSeen(key: string): void {
+  seen.add(key)
+  seenOrder.push(key)
+  while (seenOrder.length > SEEN_LIMIT) {
+    const oldest = seenOrder.shift()
+    if (oldest) seen.delete(oldest)
   }
-  return path
 }
 
 function mapAccess(value: string): ToastAccess {
@@ -54,17 +44,7 @@ function sendAccess(): void {
   win.webContents.send(IPC.toastsAccess, access)
 }
 
-function handleLine(line: string): void {
-  let parsed: unknown
-  try {
-    parsed = JSON.parse(line)
-  } catch {
-    return
-  }
-  if (!parsed || typeof parsed !== 'object') return
-
-  const raw = parsed as Record<string, unknown>
-
+onBridgeMessage((raw) => {
   if (raw.type === 'access' && typeof raw.access === 'string') {
     access = mapAccess(raw.access)
     if (access !== 'allowed') console.warn('[toasts] notification access:', raw.access)
@@ -76,7 +56,7 @@ function handleLine(line: string): void {
 
   const key = typeof raw.key === 'string' ? raw.key : null
   if (!key || seen.has(key)) return
-  seen.add(key)
+  markSeen(key)
 
   const created = typeof raw.created === 'number' ? raw.created : Date.now()
   if (created < importAfter) return
@@ -98,63 +78,7 @@ function handleLine(line: string): void {
     app: appName,
     level: 'info'
   })
-}
-
-function killHelper(): void {
-  const proc = helper
-  helper = null
-  if (!proc) return
-  try {
-    proc.stdin.end()
-  } catch {
-    // Already gone.
-  }
-  try {
-    proc.kill()
-  } catch {
-    // Already gone.
-  }
-}
-
-function startHelper(): void {
-  if (helper) return
-
-  const path = ensureScript()
-  const proc = spawn(
-    'powershell.exe',
-    ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path],
-    { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }
-  )
-  helper = proc
-  logBuffer = ''
-
-  proc.stdout.setEncoding('utf8')
-  proc.stdout.on('data', (chunk: string) => {
-    logBuffer += chunk
-    let newline = logBuffer.indexOf('\n')
-    while (newline >= 0) {
-      const line = logBuffer.slice(0, newline).replace(/\r$/, '').trim()
-      logBuffer = logBuffer.slice(newline + 1)
-      if (line) handleLine(line)
-      newline = logBuffer.indexOf('\n')
-    }
-  })
-
-  proc.stderr.setEncoding('utf8')
-  proc.stderr.on('data', (chunk: string) => {
-    console.warn('[toasts] helper:', chunk.trim())
-  })
-
-  proc.on('error', (error) => {
-    console.warn('[toasts] helper failed to start', error)
-    if (helper === proc) helper = null
-  })
-
-  proc.on('exit', (code) => {
-    if (code !== 0 && code !== null) console.warn('[toasts] helper exited with', code)
-    if (helper === proc) helper = null
-  })
-}
+})
 
 /** Starts the listener if needed and reports whether Windows lets us read toasts. */
 export function subscribeToasts(): Promise<ToastAccess> {
@@ -163,7 +87,10 @@ export function subscribeToasts(): Promise<ToastAccess> {
     clearTimeout(idleTimer)
     idleTimer = null
   }
-  startHelper()
+  if (!holding) {
+    holding = true
+    retainBridge()
+  }
   return Promise.resolve(access)
 }
 
@@ -173,7 +100,9 @@ export function unsubscribeToasts(): void {
   if (idleTimer) clearTimeout(idleTimer)
   idleTimer = setTimeout(() => {
     idleTimer = null
-    if (subscribers === 0) killHelper()
+    if (subscribers > 0 || !holding) return
+    holding = false
+    releaseBridge(0)
   }, IDLE_STOP_MS)
 }
 
@@ -187,5 +116,8 @@ export function stopToastHelper(): void {
     clearTimeout(idleTimer)
     idleTimer = null
   }
-  killHelper()
+  if (holding) {
+    holding = false
+    releaseBridge(0)
+  }
 }

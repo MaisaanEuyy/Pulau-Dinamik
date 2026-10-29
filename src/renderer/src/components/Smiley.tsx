@@ -15,7 +15,8 @@ interface SmileyProps {
 
 type Mood = 'idle' | 'hover' | 'pressed' | 'bliss'
 
-const WHITE = '#f8fbff'
+/** The face inherits its ink from CSS, so the light theme can flip it dark. */
+const INK = 'currentColor'
 
 /**
  * Normalised pointer offset from the face centre. The travel is deliberately
@@ -38,14 +39,14 @@ function ClosedEyes() {
       <path
         d="M6.4 10.8Q8.4 8.1 10.6 10.8"
         fill="none"
-        stroke={WHITE}
+        stroke={INK}
         strokeWidth="1.7"
         strokeLinecap="round"
       />
       <path
         d="M13.4 10.8Q15.6 8.1 17.6 10.8"
         fill="none"
-        stroke={WHITE}
+        stroke={INK}
         strokeWidth="1.7"
         strokeLinecap="round"
       />
@@ -80,7 +81,7 @@ function NotePair() {
 /**
  * The face: no head, just white eyes and a mouth. It floats and blinks while
  * idle, tracks the pointer when hovered, folds into closed "blissful" eyes while
- * music is playing — and nods along with the bass. Purely decorative, so it
+ * music is playing — and nods along with it. Purely decorative, so it
  * stays hidden from screen readers.
  */
 export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
@@ -151,7 +152,7 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
           ? { scaleX: 1.04, scaleY: 1.04, rotate: 0 }
           : { scaleX: 1, scaleY: 1, rotate: 0 }
 
-  // A slow bob while idle; the bass nod on top of it does the rest.
+  // A slow bob while idle; the music nod on top of it does the rest.
   const sway = reduced
     ? { y: 0, rotate: 0 }
     : mood === 'bliss'
@@ -202,8 +203,8 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
             animate={{ opacity: eyesShut ? 0 : 1 }}
             transition={{ duration: reduced ? 0 : 0.13 }}
           >
-            <ellipse className="smiley-eye" cx="8.4" cy="10.2" rx="1.45" ry="1.9" fill={WHITE} />
-            <ellipse className="smiley-eye" cx="15.6" cy="10.2" rx="1.45" ry="1.9" fill={WHITE} />
+            <ellipse className="smiley-eye" cx="8.4" cy="10.2" rx="1.45" ry="1.9" fill={INK} />
+            <ellipse className="smiley-eye" cx="15.6" cy="10.2" rx="1.45" ry="1.9" fill={INK} />
           </motion.g>
 
           {/* Closed eyes: happy arcs while the song plays, a flatter squint when pressed. */}
@@ -219,19 +220,19 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
           <motion.path
             d="M9.7 14.6Q12 16.3 14.3 14.6"
             fill="none"
-            stroke={WHITE}
+            stroke={INK}
             strokeWidth="1.5"
             strokeLinecap="round"
             animate={{ opacity: mood === 'idle' ? 1 : 0 }}
             transition={{ duration: reduced ? 0 : 0.16 }}
           />
 
-          {/* Grin: wider and rounder, opening up on the bass. */}
+          {/* Grin: wider and rounder, opening up with the music. */}
           <motion.g style={{ scaleY: reduced ? 1 : grinOpen, transformOrigin: '12px 14.4px' }}>
             <motion.path
               d="M8.8 13.9Q12 17.4 15.2 13.9"
               fill="none"
-              stroke={WHITE}
+              stroke={INK}
               strokeWidth="1.7"
               strokeLinecap="round"
               animate={{ opacity: grinning ? 1 : 0 }}
@@ -245,7 +246,7 @@ export function Smiley({ hovered, pressed, playing, beat }: SmileyProps) {
             cy="15.4"
             rx="1.25"
             ry="1.5"
-            fill={WHITE}
+            fill={INK}
             animate={{ opacity: mood === 'pressed' ? 1 : 0 }}
             transition={{ duration: reduced ? 0 : 0.13 }}
           />

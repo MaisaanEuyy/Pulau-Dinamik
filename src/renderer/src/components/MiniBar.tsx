@@ -1,4 +1,12 @@
-import { Bell, Music2, Pause, Play, SkipBack, SkipForward } from 'lucide-react'
+import {
+  Bell,
+  Music2,
+  Pause,
+  Play,
+  Settings as SettingsIcon,
+  SkipBack,
+  SkipForward
+} from 'lucide-react'
 import type { CSSProperties, ReactNode } from 'react'
 import type { NotificationLevel } from '@shared/notifications'
 import type { MediaState } from '@shared/media'
@@ -217,6 +225,22 @@ function AlertsMini({ data, port }: { data: TabData['alerts']; port: number | nu
   )
 }
 
+function SettingsMini({ data }: { data: TabData['settings'] }) {
+  const theme = data.value?.theme ?? 'dark'
+
+  return (
+    <div className="mini mini--settings">
+      <span className="mini-art" data-empty="true">
+        <SettingsIcon size={12} strokeWidth={1.9} />
+      </span>
+      <span className="mini-text">
+        <span className="mini-title">Settings</span>
+        <span className="mini-sub">{theme === 'light' ? 'Light mode' : 'Dark mode'}</span>
+      </span>
+    </div>
+  )
+}
+
 /** Compact per-section view that fills the collapsed pill. */
 export function MiniBar({
   tab,
@@ -230,5 +254,6 @@ export function MiniBar({
   if (tab.id === 'media') return <MediaMini state={data.media.state} send={data.media.send} />
   if (tab.id === 'system') return <SystemMini data={data.system} />
   if (tab.id === 'keys') return <KeysMini data={data.keyboard} />
+  if (tab.id === 'settings') return <SettingsMini data={data.settings} />
   return <AlertsMini data={data.alerts} port={notifyPort} />
 }

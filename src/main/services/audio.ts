@@ -29,6 +29,8 @@ interface KoffiModule {
 
 interface AudioReader {
   read(): VolumeState | null
+  /** 0..1 peak of whatever is playing on the default output, or null. */
+  peak(): number | null
   close(): void
 }
 
@@ -36,6 +38,27 @@ let timer: NodeJS.Timeout | null = null
 let reader: AudioReader | null = null
 let last: VolumeState | null = null
 let ticks = 0
+
+/** The beat watcher polls fast enough to feel like a 60 fps animation. */
+const BEAT_POLL_MS = 16
+/** Re-resolve the endpoint every ~2 s, same as the volume watcher. */
+const BEAT_REFRESH_EVERY = 125
+
+let beatTimer: NodeJS.Timeout | null = null
+let beatReader: AudioReader | null = null
+let beatTicks = 0
+
+/** Koffi registers the GUID struct globally, so build the opener only once. */
+let opener: (() => AudioReader | null) | null = null
+let openerReady = false
+
+function getEndpointOpener(): (() => AudioReader | null) | null {
+  if (!openerReady) {
+    openerReady = true
+    opener = createEndpointOpener()
+  }
+  return opener
+}
 
 const clamp = (value: number, min: number, max: number): number =>
   Math.min(Math.max(value, min), max)
@@ -87,6 +110,7 @@ function createEndpointOpener(): (() => AudioReader | null) | null {
     const CLSID_MM_DEVICE_ENUMERATOR = parseGuid('BCDE0395-E52F-467C-8E3D-C4579291692E')
     const IID_MM_DEVICE_ENUMERATOR = parseGuid('A95664D2-9614-4F35-A746-DE8DB63617E6')
     const IID_AUDIO_ENDPOINT_VOLUME = parseGuid('5CDF2C82-841E-4546-9722-0CF74078229A')
+    const IID_AUDIO_METER_INFORMATION = parseGuid('C02216F6-8C67-4B5B-9D00-D008E73E0064')
 
     const ole32 = koffi.load('ole32.dll')
     const CoInitializeEx = ole32.func('long CoInitializeEx(void *pvReserved, uint32_t dwCoInit)')
@@ -104,6 +128,7 @@ function createEndpointOpener(): (() => AudioReader | null) | null {
       'long GetMasterVolumeLevelScalar(void *self, _Out_ float *level)'
     )
     const GetMute = koffi.proto('long GetMute(void *self, _Out_ int32_t *muted)')
+    const GetPeakValue = koffi.proto('long GetPeakValue(void *self, _Out_ float *peak)')
     const Release = koffi.proto('uint32_t Release(void *self)')
 
     // Chromium already owns the COM apartment on the UI thread; a changed-mode
@@ -146,8 +171,10 @@ function createEndpointOpener(): (() => AudioReader | null) | null {
 
       let device: unknown = null
       let volume: unknown = null
+      let meter: unknown = null
 
       const fail = (): null => {
+        if (meter) release(meter)
         if (volume) release(volume)
         if (device) release(device)
         release(enumerator)
@@ -174,15 +201,30 @@ function createEndpointOpener(): (() => AudioReader | null) | null {
         }
         volume = koffi.decode(volumeRef, 'void *')
 
+        // Optional: the master peak meter. The beat visualiser uses it so the
+        // renderer never has to open a desktop-capture stream.
+        const meterRef = Buffer.alloc(POINTER_SIZE)
+        try {
+          if (activate(device, IID_AUDIO_METER_INFORMATION, CLSCTX_ALL, null, meterRef) === 0) {
+            meter = koffi.decode(meterRef, 'void *')
+          }
+        } catch {
+          meter = null
+        }
+
         const getLevel = method<(self: unknown, out: Float32Array) => number>(
           volume,
           9,
           GetMasterVolumeLevelScalar
         )
         const getMute = method<(self: unknown, out: Int32Array) => number>(volume, 15, GetMute)
+        const getPeak = meter
+          ? method<(self: unknown, out: Float32Array) => number>(meter, 3, GetPeakValue)
+          : null
 
         const levelRef = new Float32Array(1)
         const muteRef = new Int32Array(1)
+        const peakRef = new Float32Array(1)
 
         return {
           read(): VolumeState | null {
@@ -194,7 +236,17 @@ function createEndpointOpener(): (() => AudioReader | null) | null {
               return null
             }
           },
+          peak(): number | null {
+            if (!getPeak) return null
+            try {
+              if (getPeak(meter, peakRef) !== 0) return null
+              return clamp(peakRef[0], 0, 1)
+            } catch {
+              return null
+            }
+          },
           close(): void {
+            if (meter) release(meter)
             release(volume)
             release(device)
             release(enumerator)
@@ -221,7 +273,7 @@ function emit(state: VolumeState): void {
 export function startVolumeWatcher(): void {
   if (timer) return
 
-  const openEndpoint = createEndpointOpener()
+  const openEndpoint = getEndpointOpener()
   if (!openEndpoint) return
 
   const tick = (): void => {
@@ -268,4 +320,49 @@ export function stopVolumeWatcher(): void {
 
 export function getVolumeState(): VolumeState | null {
   return last
+}
+
+/**
+ * Streams the default output's peak level to the island while the face is on
+ * screen. This is Core Audio's own meter, so the beat visualiser costs one COM
+ * call per frame instead of a desktop-capture audio graph in the renderer.
+ */
+export function startBeatWatcher(): void {
+  if (beatTimer) return
+
+  const openEndpoint = getEndpointOpener()
+  if (!openEndpoint) return
+
+  const tick = (): void => {
+    beatTicks += 1
+
+    if (beatReader && beatTicks % BEAT_REFRESH_EVERY === 0) {
+      beatReader.close()
+      beatReader = null
+    }
+    if (!beatReader) {
+      beatReader = openEndpoint()
+      if (!beatReader) return
+    }
+
+    const peak = beatReader.peak()
+    // A null peak means the meter is unavailable on this endpoint; the
+    // periodic reopen above retries, and the face simply keeps its idle sway.
+    if (peak === null) return
+
+    const win = getIslandWindow()
+    if (!win || win.isDestroyed() || !win.isVisible()) return
+    win.webContents.send(IPC.beatUpdate, peak)
+  }
+
+  tick()
+  beatTimer = setInterval(tick, BEAT_POLL_MS)
+}
+
+export function stopBeatWatcher(): void {
+  if (beatTimer) clearInterval(beatTimer)
+  beatTimer = null
+  if (beatReader) beatReader.close()
+  beatReader = null
+  beatTicks = 0
 }

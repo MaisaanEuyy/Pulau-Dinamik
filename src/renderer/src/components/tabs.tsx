@@ -1,13 +1,15 @@
-import { Activity, Bell, Keyboard, Music2 } from 'lucide-react'
+import { Activity, Bell, Keyboard, Music2, Settings as SettingsIcon } from 'lucide-react'
 import type { ElementType } from 'react'
 import type { MediaCommand, MediaState } from '@shared/media'
 import type { IslandNotification } from '@shared/notifications'
+import type { Settings } from '@shared/settings'
 import type { SystemSnapshot } from '@shared/system'
 import type { KeyboardActivity } from '../hooks/useKeyboard'
 import type { NotificationsStore } from '../hooks/useNotifications'
 import { AlertsPanel } from './AlertsPanel'
 import { KeysPanel } from './KeysPanel'
 import { MediaPanel } from './MediaPanel'
+import { SettingsPanel } from './SettingsPanel'
 import { SystemPanel } from './SystemPanel'
 
 export interface TabDefinition {
@@ -51,6 +53,14 @@ export const TABS: readonly TabDefinition[] = [
     description: 'Toasts from your own scripts and tools through the local notification API.',
     milestone: 'Milestone 6',
     icon: Bell
+  },
+  {
+    id: 'settings',
+    label: 'Settings',
+    headline: 'Settings',
+    description: 'Appearance, startup and the global hotkey.',
+    milestone: 'Milestone 7',
+    icon: SettingsIcon
   }
 ]
 
@@ -65,6 +75,10 @@ export interface TabData {
   system: SystemSnapshot | null
   keyboard: KeyboardActivity
   alerts: NotificationsStore
+  settings: {
+    value: Settings | null
+    patch: (patch: Partial<Settings>) => void
+  }
 }
 
 export function TabPanel({
@@ -81,6 +95,9 @@ export function TabPanel({
   if (tab.id === 'media') return <MediaPanel state={data.media.state} send={data.media.send} />
   if (tab.id === 'system') return <SystemPanel snapshot={data.system} />
   if (tab.id === 'keys') return <KeysPanel activity={data.keyboard} />
+  if (tab.id === 'settings') {
+    return <SettingsPanel settings={data.settings.value} patch={data.settings.patch} />
+  }
 
   return <AlertsPanel alerts={data.alerts} port={notifyPort} focus={focusAlert} />
 }
