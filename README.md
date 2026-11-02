@@ -171,6 +171,21 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Packaging: `npm run dist` builds an NSIS installer (desktop + Start Menu
       shortcut, per-user install, no admin prompt) — see **Build installer**
 
+**Revisions — one big notification card** ✅ (0.1.2)
+
+- [x] A new notification no longer paints a second, smaller copy of itself across
+      the header. The card opens on **Alerts** and the newest item *is* the card,
+      so there is one place to look instead of two
+- [x] That card is now headline-sized: 15 px title (up to two lines) and 12 px
+      message (up to three lines) on a tinted, rounded surface, instead of the old
+      11 px / 9 px strip that the header had to grow to fit
+- [x] The header keeps its normal 44 px height during a peek — the face, clock and
+      pin/close buttons stay put instead of being squeezed by a taller header
+- [x] The peek owns the card for its 4.2 s: moving the pointer away or losing
+      window focus no longer closes it early (only a click, `Esc` or the × takes
+      over), and the section you were on still comes back afterwards
+- [x] History rows are unchanged — the bigger type only applies to the peek
+
 **Revisions — settings menu & readable notifications** ✅
 
 - [x] New **Settings** section in the tabbar: light/dark appearance, start with

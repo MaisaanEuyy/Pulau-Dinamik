@@ -584,100 +584,9 @@ button {
 
 /* --------------------------------------------------------- notification HUD */
 
-.alert-hud {
-  position: absolute;
-  z-index: 4;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 0 14px;
-  border-radius: 22px 22px 0 0;
-  background: linear-gradient(180deg, rgba(21, 21, 26, 0.9), rgba(8, 8, 10, 0.94));
-  backdrop-filter: blur(12px) saturate(120%);
-  pointer-events: none;
-}
-
-/* A peek may use two title lines and three message lines, so the header grows
-   while it is on screen instead of cutting the text off. */
-.island[data-hud='true'][data-expanded='true'] {
-  --header-height: 68px;
-}
-
-.alert-hud[data-expanded='true'] {
-  padding-right: 80px;
-}
-
-.alert-hud-icon {
-  display: grid;
-  flex: 0 0 auto;
-  place-items: center;
-  color: #7dd3fc;
-}
-
-.alert-hud[data-level='success'] .alert-hud-icon {
-  color: #6ee7b7;
-}
-
-.alert-hud[data-level='warning'] .alert-hud-icon {
-  color: #fbbf24;
-}
-
-.alert-hud[data-level='error'] .alert-hud-icon {
-  color: #fb7185;
-}
-
-.alert-hud-text {
-  display: flex;
-  flex: 1 1 auto;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-
-.alert-hud-title {
-  display: -webkit-box;
-  overflow: hidden;
-  color: #f6f8fc;
-  font-size: 11px;
-  font-weight: 600;
-  line-height: 1.2;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-}
-
-.alert-hud-message {
-  display: -webkit-box;
-  overflow: hidden;
-  color: rgba(228, 232, 244, 0.62);
-  font-size: 9px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 3;
-}
-
-/* Folded back into the pill there is only one header row of room. */
-.alert-hud[data-expanded='false'] .alert-hud-title {
-  -webkit-line-clamp: 1;
-}
-
-.alert-hud[data-expanded='false'] .alert-hud-message {
-  -webkit-line-clamp: 2;
-}
-
-.alert-hud-app {
-  flex: 0 0 auto;
-  overflow: hidden;
-  max-width: 72px;
-  color: rgba(228, 232, 244, 0.42);
-  font-size: 8px;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
+/* A notification no longer paints a second, smaller copy across the header: it
+   opens the card itself (see `.alerts-panel[data-focus='true']` below), so the
+   header keeps its normal height and its controls stay readable. */
 
 /* ---------------------------------------------------------------- controls */
 
@@ -1528,6 +1437,76 @@ button {
   text-transform: uppercase;
 }
 
+/* A notification opens the card itself, so the newest one is a headline-sized
+   card instead of a 10 px row — it is the only thing on screen for a few
+   seconds, nothing else competes for the space. */
+.alerts-panel[data-focus='true'] {
+  padding: 8px 10px;
+}
+
+.alerts-panel[data-focus='true'] .alerts-head {
+  padding: 0 2px 7px;
+}
+
+.alerts-panel[data-focus='true'] .alerts-count {
+  color: rgba(226, 232, 244, 0.55);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+}
+
+.alerts-panel[data-focus='true'] .alerts-list {
+  justify-content: center;
+}
+
+.alerts-panel[data-focus='true'] .alert-row {
+  gap: 10px;
+  padding: 10px 12px;
+  border-color: rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.075), rgba(255, 255, 255, 0.025));
+}
+
+.alerts-panel[data-focus='true'] .alert-dot {
+  width: 7px;
+  height: 7px;
+  margin-top: 6px;
+}
+
+.alerts-panel[data-focus='true'] .alert-body {
+  gap: 3px;
+}
+
+.alerts-panel[data-focus='true'] .alert-title {
+  display: -webkit-box;
+  overflow: hidden;
+  font-size: 15px;
+  line-height: 1.24;
+  white-space: normal;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.alerts-panel[data-focus='true'] .alert-message {
+  display: -webkit-box;
+  overflow: hidden;
+  color: rgba(226, 232, 244, 0.66);
+  font-size: 12px;
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.alerts-panel[data-focus='true'] .alert-time {
+  font-size: 9px;
+}
+
+.alerts-panel[data-focus='true'] .alert-app {
+  color: rgba(226, 232, 244, 0.42);
+  font-size: 8.5px;
+}
+
 .alerts-empty {
   display: flex;
   flex-direction: column;
@@ -1856,8 +1835,7 @@ button {
 }
 
 /* header HUDs */
-:root[data-theme='light'] .volume-hud,
-:root[data-theme='light'] .alert-hud {
+:root[data-theme='light'] .volume-hud {
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(238, 241, 247, 0.97));
 }
 
@@ -1876,34 +1854,6 @@ button {
 
 :root[data-theme='light'] .volume-value {
   color: rgba(23, 26, 33, 0.72);
-}
-
-:root[data-theme='light'] .alert-hud[data-level='info'] .alert-hud-icon {
-  color: #0284c7;
-}
-
-:root[data-theme='light'] .alert-hud[data-level='success'] .alert-hud-icon {
-  color: #059669;
-}
-
-:root[data-theme='light'] .alert-hud[data-level='warning'] .alert-hud-icon {
-  color: #d97706;
-}
-
-:root[data-theme='light'] .alert-hud[data-level='error'] .alert-hud-icon {
-  color: #e11d48;
-}
-
-:root[data-theme='light'] .alert-hud-title {
-  color: #14171e;
-}
-
-:root[data-theme='light'] .alert-hud-message {
-  color: rgba(23, 26, 33, 0.68);
-}
-
-:root[data-theme='light'] .alert-hud-app {
-  color: rgba(23, 26, 33, 0.5);
 }
 
 /* header buttons */
@@ -2185,6 +2135,23 @@ button {
 
 :root[data-theme='light'] .alert-app {
   color: rgba(23, 26, 33, 0.4);
+}
+
+:root[data-theme='light'] .alerts-panel[data-focus='true'] .alerts-count {
+  color: rgba(23, 26, 33, 0.55);
+}
+
+:root[data-theme='light'] .alerts-panel[data-focus='true'] .alert-row {
+  border-color: rgba(15, 23, 42, 0.1);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(241, 244, 250, 0.8));
+}
+
+:root[data-theme='light'] .alerts-panel[data-focus='true'] .alert-message {
+  color: rgba(23, 26, 33, 0.7);
+}
+
+:root[data-theme='light'] .alerts-panel[data-focus='true'] .alert-app {
+  color: rgba(23, 26, 33, 0.5);
 }
 
 :root[data-theme='light'] .alerts-empty-icon {

@@ -1,5 +1,5 @@
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
-import { Bell, Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
+import { Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AppInfo } from '@shared/api'
 import { ISLAND_LAYOUT } from '@shared/layout'
@@ -37,7 +37,7 @@ const EXPANDED_SIZE = {
 const SHRINK_DELAY_MS = 420
 /** Grace period before an unpinned card closes after the pointer leaves. */
 const LEAVE_DELAY_MS = 280
-/** How long a fresh notification stays on the header. */
+/** How long a fresh notification takes over the card. */
 const ALERT_HUD_MS = 4200
 
 function useClock(): string {
@@ -58,9 +58,8 @@ export function Island({ settings, info }: IslandProps) {
   const [hovered, setHovered] = useState(false)
   const [pressed, setPressed] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
-  const [hud, setHud] = useState<IslandNotification | null>(null)
   /** The notification that opened the card: while it is set the Alerts panel
-   * shows only that one instead of the whole history. */
+   * shows only that one, as a full-size card, instead of the history. */
   const [alertFocus, setAlertFocus] = useState<IslandNotification | null>(null)
   /** The window slides out of the top edge on hide; the island folds with it. */
   const [presence, setPresence] = useState<'visible' | 'leaving'>('visible')
@@ -94,6 +93,10 @@ export function Island({ settings, info }: IslandProps) {
   /** The pointer (or Escape) took the card over during a notification HUD, so
    * nothing about the session gets put back. */
   const tookOver = useRef(false)
+  /** While a notification is on screen the card must not close by itself —
+   * losing the pointer or the focus would swallow the peek before it is read. */
+  const alertFocusRef = useRef<IslandNotification | null>(null)
+  alertFocusRef.current = alertFocus
 
   const cancelLeave = useCallback(() => {
     if (!leaveTimer.current) return
@@ -120,6 +123,8 @@ export function Island({ settings, info }: IslandProps) {
     setPressed(false)
     cancelLeave()
     if (pinned) return
+    // A notification peek owns the card until its timer runs out.
+    if (alertFocusRef.current) return
     leaveTimer.current = setTimeout(() => {
       leaveTimer.current = null
       setOpen(false)
@@ -151,8 +156,12 @@ export function Island({ settings, info }: IslandProps) {
   useEffect(() => window.island.onShowing(() => setPresence('visible')), [])
 
   useEffect(() => {
-    // Losing focus closes the transient card, but a pinned island stays put.
-    const onBlur = (): void => setOpen(false)
+    // Losing focus closes the transient card, but a pinned island stays put and
+    // a notification peek is left alone until its own timer ends.
+    const onBlur = (): void => {
+      if (alertFocusRef.current) return
+      setOpen(false)
+    }
     window.addEventListener('blur', onBlur)
     return () => window.removeEventListener('blur', onBlur)
   }, [])
@@ -186,7 +195,8 @@ export function Island({ settings, info }: IslandProps) {
     if (expanded && tab === 'alerts') markSeen()
   }, [expanded, tab, markSeen, alertCount])
 
-  // Transient header card for notifications posted through the local API.
+  // A fresh notification takes the card over: it opens on the Alerts section and
+  // stays there for a few seconds, showing only the newest item.
   const openRef = useRef(open)
   openRef.current = open
   const pinnedRef = useRef(pinned)
@@ -217,9 +227,8 @@ export function Island({ settings, info }: IslandProps) {
           previousTab.current = tabRef.current
         }
         // A notification is pointless if the island is asleep: bring it back
-        // down and open the card, so the HUD has room to be read.
+        // down and open the card, so the item has room to be read.
         if (!visibleRef.current) void window.island.showIsland()
-        setHud(notification)
         setAlertFocus(notification)
         if (!pinnedRef.current) setOpen(true)
         // Show the thing that just happened: the Alerts section, not whatever
@@ -230,9 +239,8 @@ export function Island({ settings, info }: IslandProps) {
   )
 
   useEffect(() => {
-    if (!hud) return
+    if (!alertFocus) return
     const timer = setTimeout(() => {
-      setHud(null)
       hudActive.current = false
       // The peek is over: the Alerts section (if still open) shows the history.
       setAlertFocus(null)
@@ -250,7 +258,7 @@ export function Island({ settings, info }: IslandProps) {
       }
     }, ALERT_HUD_MS)
     return () => clearTimeout(timer)
-  }, [hud])
+  }, [alertFocus])
 
   // The window keeps its expanded footprint for its whole lifetime and is only
   // *shaped* down to the pill while collapsed. Resizing a visible transparent
@@ -309,7 +317,6 @@ export function Island({ settings, info }: IslandProps) {
       data-expanded={expanded}
       data-pinned={pinned}
       data-hovered={hovered}
-      data-hud={Boolean(hud)}
       aria-keyshortcuts={settings?.hotkey}
       initial={false}
       animate={{
@@ -429,30 +436,6 @@ export function Island({ settings, info }: IslandProps) {
               <span className="volume-value">
                 {volume.muted ? 'Muted' : `${volumePercent}%`}
               </span>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
-        <AnimatePresence initial={false}>
-          {hud && (
-            <motion.div
-              className="alert-hud"
-              data-level={hud.level}
-              data-expanded={expanded}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: reducedMotion ? 0 : 0.18 }}
-              aria-hidden="true"
-            >
-              <span className="alert-hud-icon">
-                <Bell size={14} strokeWidth={2} />
-              </span>
-              <span className="alert-hud-text">
-                <span className="alert-hud-title">{hud.title}</span>
-                {hud.message ? <span className="alert-hud-message">{hud.message}</span> : null}
-              </span>
-              {hud.app ? <span className="alert-hud-app">{hud.app}</span> : null}
             </motion.div>
           )}
         </AnimatePresence>
