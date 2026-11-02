@@ -58,7 +58,7 @@ export const TABS: readonly TabDefinition[] = [
     id: 'settings',
     label: 'Settings',
     headline: 'Settings',
-    description: 'Appearance, startup and the global hotkey.',
+    description: 'Appearance, startup, Discord and the hotkey.',
     milestone: 'Milestone 7',
     icon: SettingsIcon
   }

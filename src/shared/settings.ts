@@ -16,6 +16,8 @@ export interface Settings {
   hotkey: string
   /** Start the app when the user signs in to Windows. */
   launchAtLogin: boolean
+  /** Mirror the current track to the Discord profile as a "Listening" card. */
+  discordPresence: boolean
   /** Light or dark island chrome. */
   theme: ThemeMode
 }
@@ -25,5 +27,6 @@ export const DEFAULT_SETTINGS: Settings = {
   displayId: null,
   hotkey: 'Control+Alt+Space',
   launchAtLogin: false,
+  discordPresence: true,
   theme: 'dark'
 }

@@ -1591,9 +1591,9 @@ button {
 .settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
   height: 100%;
-  padding: 9px 10px;
+  padding: 6px 10px;
 }
 
 .settings-row {
@@ -1602,8 +1602,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 34px;
-  padding: 4px 8px 4px 10px;
+  min-height: 32px;
+  padding: 3px 8px 3px 10px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
@@ -1724,15 +1724,6 @@ button {
   letter-spacing: 0.01em;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-}
-
-.settings-foot {
-  margin-top: auto;
-  padding: 2px 2px 0;
-  color: rgba(226, 232, 244, 0.32);
-  font-size: 8px;
-  line-height: 1.4;
-  text-align: center;
 }
 
 /* ---------------------------------------------------------------- light theme
@@ -2274,10 +2265,6 @@ button {
   border-color: rgba(15, 23, 42, 0.08);
   background: rgba(15, 23, 42, 0.04);
   color: rgba(23, 26, 33, 0.75);
-}
-
-:root[data-theme='light'] .settings-foot {
-  color: rgba(23, 26, 33, 0.4);
 }
 
 :root[data-theme='light'] .island-btn:focus-visible,

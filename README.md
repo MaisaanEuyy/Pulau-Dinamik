@@ -184,6 +184,9 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       cutting it off with an ellipsis; the header grows while the peek is up
 - [x] The Alerts list wraps messages instead of truncating them, so the history
       stays readable too
+- [x] **Discord activity**: the track playing in Chrome/Spotify/… is mirrored to
+      the Discord profile as a *Listening* card, with the album-art slot, a
+      progress bar and a “• Paused” suffix — see **Discord activity**
 
 Next: per-app notification filters.
 
@@ -211,8 +214,8 @@ npm run dev
   anything posted through the local API (see below); it keeps a red dot on the tab
   while new ones are waiting.
 - The **Settings** section switches the island between dark and light, toggles
-  start-with-Windows and shows the current hotkey; the tray's **Settings…** entry
-  opens it from anywhere.
+  start-with-Windows, mirrors the current track to Discord and shows the current
+  hotkey; the tray's **Settings…** entry opens it from anywhere.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, launch-at-login and quit.
 
@@ -238,6 +241,36 @@ forwarded to the Alerts section, labelled with the app that sent it.
   notification id + timestamp`, and anything older than the app start is ignored.
 - Text and app names stay in memory (last 24) and are never sent anywhere; the
   helper writes no files, just one JSON line per toast over the pipe.
+
+## Discord activity
+
+The island can mirror the current track to your Discord profile as a **Listening**
+card, so friends see it without opening the island. Switch it off from the tray
+menu (*Show in Discord*) or the Settings tab.
+
+- It talks to the desktop client over its local named pipe (`\\.\pipe\discord-ipc-*`)
+  — no bot, no token, no network traffic. Discord has to be **running and logged
+  in**; the service retries every 5 s while it is.
+- The card is owned by the Discord application configured in
+  `src/shared/discord.ts` (`DISCORD_CLIENT_ID`). The portal name is what the
+  profile reads as *“Listening to …”*; the track itself lands in the second and
+  third line (`details` = title, `state` = artist).
+- Cover art cannot be mirrored: Discord only accepts uploaded asset keys, while
+  SMTC hands us a `data:` URL. `DISCORD_ASSET_KEY` points at the image uploaded
+  under *Rich Presence → Art Assets*; set it to `''` for a card without art.
+- Progress comes from SMTC's timeline (`start` = now − position, `end` = start +
+  duration). Players that report no duration — live streams, some browser
+  players — simply get no bar.
+- A paused player keeps the card with **“• Paused”** appended and the bar removed,
+  rather than making the track vanish.
+- Updates are throttled to one every 5 s and de-duplicated, well under Discord's
+  5-per-20 s limit; a seek of more than 5 s resends the timeline.
+- While the feature is on, SMTC polling never idles (the card has to follow the
+  track even when the island is hidden), so the shared PowerShell helper stays
+  warm. Turn it off to let the helper go back to sleep.
+- YouTube in Chrome usually reports the video title only; a trailing
+  ` - YouTube` / ` - YouTube Music` is stripped, and the artist line falls back to
+  the app name when the site sends none.
 
 ### Local API and CLI
 

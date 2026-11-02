@@ -40,6 +40,7 @@ import {
 } from './services/toasts'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
+import { startDiscordPresence, stopDiscordPresence, syncDiscordPresence, isDiscordConnected } from './services/discord'
 import { stopBridge } from './services/winrt'
 import {
   createIslandWindow,
@@ -97,6 +98,7 @@ function registerIpc(): void {
       repositionIsland()
     }
     if (previous.launchAtLogin !== next.launchAtLogin) applyLoginItem(next.launchAtLogin)
+    if (previous.discordPresence !== next.discordPresence) syncDiscordPresence(next.discordPresence)
 
     broadcastSettings(next)
     return next
@@ -468,6 +470,19 @@ function runSmokeTest(win: BrowserWindow): void {
     }
   }
 
+  /** Reports whether the Discord card could reach the desktop client. */
+  const verifyDiscord = async (): Promise<{
+    enabled: boolean
+    connected: boolean
+  }> => {
+    const enabled = getSettings().discordPresence
+    if (enabled) {
+      const deadline = Date.now() + 3000
+      while (!isDiscordConnected() && Date.now() < deadline) await wait(100)
+    }
+    return { enabled, connected: isDiscordConnected() }
+  }
+
   const finish = (interactions: {
     hoverStaysCollapsed: boolean
     clickExpands: boolean
@@ -511,6 +526,9 @@ function runSmokeTest(win: BrowserWindow): void {
     ok: boolean
     access: string
     imported: number
+  }, discord: {
+    enabled: boolean
+    connected: boolean
   }): void => {
     const bounds = win.getBounds()
     console.log(
@@ -539,6 +557,7 @@ function runSmokeTest(win: BrowserWindow): void {
         keyboard,
         notifications,
         toasts,
+        discord,
         visible: win.isVisible(),
         alwaysOnTop: win.isAlwaysOnTop(),
         hotkeyRegistered,
@@ -570,7 +589,8 @@ function runSmokeTest(win: BrowserWindow): void {
         const keyboard = await verifyKeyboard()
         const notifications = await verifyNotifications()
         const toasts = await verifyToasts()
-        finish(interactions, system, media, volume, keyboard, notifications, toasts)
+        const discord = await verifyDiscord()
+        finish(interactions, system, media, volume, keyboard, notifications, toasts, discord)
       })()
     }
   }, 100)
@@ -607,6 +627,7 @@ async function bootstrap(): Promise<void> {
   registerHotkey()
   syncLoginItem()
   startVolumeWatcher()
+  if (getSettings().discordPresence) startDiscordPresence()
 
   screen.on('display-metrics-changed', handleDisplays)
   screen.on('display-added', handleDisplays)
@@ -628,6 +649,7 @@ if (!gotSingleInstanceLock) {
   app.on('before-quit', () => {
     markQuitting()
     stopSystemSampler()
+    stopDiscordPresence()
     stopMediaHelper()
     stopToastHelper()
     stopBridge()

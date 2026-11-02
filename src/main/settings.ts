@@ -28,11 +28,15 @@ function sanitize(input: unknown): Settings {
       : DEFAULT_SETTINGS.hotkey
   const launchAtLogin =
     typeof raw.launchAtLogin === 'boolean' ? raw.launchAtLogin : DEFAULT_SETTINGS.launchAtLogin
+  const discordPresence =
+    typeof raw.discordPresence === 'boolean'
+      ? raw.discordPresence
+      : DEFAULT_SETTINGS.discordPresence
   const theme = THEME_MODES.includes(raw.theme as ThemeMode)
     ? (raw.theme as ThemeMode)
     : DEFAULT_SETTINGS.theme
 
-  return { topOffset, displayId, hotkey, launchAtLogin, theme }
+  return { topOffset, displayId, hotkey, launchAtLogin, discordPresence, theme }
 }
 
 export function getSettings(): Settings {

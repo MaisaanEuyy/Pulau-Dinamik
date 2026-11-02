@@ -23,9 +23,15 @@ let firstStateWaiters: Array<() => void> = []
 let holding = false
 /** Whether the helper has been told to poll SMTC. */
 let mediaOn = false
+/** Another feature (Discord) needs the state even while the island is closed. */
+let alwaysOn = false
 
 function asText(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null
+}
+
+function asNumber(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null
 }
 
 function parseState(raw: Record<string, unknown>): MediaState | null {
@@ -40,6 +46,8 @@ function parseState(raw: Record<string, unknown>): MediaState | null {
     artist: asText(raw.artist),
     album: asText(raw.album),
     app: asText(raw.app),
+    positionMs: asNumber(raw.positionMs),
+    durationMs: asNumber(raw.durationMs),
     canPlayPause: raw.canPlayPause === true,
     canNext: raw.canNext === true,
     canPrevious: raw.canPrevious === true,
@@ -69,6 +77,19 @@ function emit(): void {
   win.webContents.send(IPC.mediaUpdate, latest)
 }
 
+/**
+ * The bridge refreshes the position every poll, but only *different* tracks are
+ * pushed to the island. Features that need the moving position (Discord) listen
+ * here and do their own filtering.
+ */
+type MediaListener = (state: MediaState | null) => void
+const listeners = new Set<MediaListener>()
+
+export function onMediaState(listener: MediaListener): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
+}
+
 function settleFirstState(): void {
   const waiters = firstStateWaiters
   firstStateWaiters = []
@@ -79,8 +100,10 @@ onBridgeMessage((raw) => {
   if (raw.type !== 'state') return
   const next = parseState(raw)
   if (!next) return
-  if (sameState(latest, next)) return
+  const changed = !sameState(latest, next)
   latest = next
+  for (const listener of listeners) listener(next)
+  if (!changed) return
   emit()
   settleFirstState()
 })
@@ -92,6 +115,7 @@ onBridgeStart(() => {
 
 onBridgeExit(() => {
   latest = null
+  for (const listener of listeners) listener(null)
 })
 
 function activate(): void {
@@ -133,7 +157,7 @@ function scheduleStop(): void {
   if (idleTimer) clearTimeout(idleTimer)
   idleTimer = setTimeout(() => {
     idleTimer = null
-    if (subscribers > 0) return
+    if (subscribers > 0 || alwaysOn) return
     deactivate()
   }, IDLE_STOP_MS)
 }
@@ -162,12 +186,32 @@ export function unsubscribeMedia(): void {
 /** Safety net for hiding the whole island while the panel is still mounted. */
 export function releaseMedia(): void {
   subscribers = 0
-  if (idleTimer) return
+  if (idleTimer || alwaysOn) return
   scheduleStop()
 }
 
 export function getMediaState(): MediaState | null {
   return latest
+}
+
+/**
+ * Keeps SMTC polling alive while the island is collapsed or hidden. The Discord
+ * card must keep moving even when nobody is looking at the panel, which the
+ * normal subscribe/unsubscribe idle timer would otherwise stop after 30 s.
+ */
+export function setMediaAlwaysOn(on: boolean): void {
+  if (alwaysOn === on) return
+  alwaysOn = on
+  if (on) {
+    if (idleTimer) {
+      clearTimeout(idleTimer)
+      idleTimer = null
+    }
+    ensureBridge()
+    activate()
+    return
+  }
+  if (subscribers === 0) scheduleStop()
 }
 
 export function sendMediaCommand(command: MediaCommand): void {

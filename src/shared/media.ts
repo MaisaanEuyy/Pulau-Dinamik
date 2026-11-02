@@ -8,6 +8,10 @@ export interface MediaState {
   album: string | null
   /** Source app user model id without the `.exe` suffix, e.g. `Spotify`. */
   app: string | null
+  /** Playback position in milliseconds, or `null` when the player has no timeline. */
+  positionMs: number | null
+  /** Track length in milliseconds, or `null` for live streams. */
+  durationMs: number | null
   canPlayPause: boolean
   canNext: boolean
   canPrevious: boolean

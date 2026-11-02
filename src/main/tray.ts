@@ -9,6 +9,7 @@ import {
 import { join } from 'node:path'
 import { IPC } from '../shared/ipc'
 import { applyLoginItem } from './autostart'
+import { syncDiscordPresence } from './services/discord'
 import { getSettings, patchSettings } from './settings'
 import { getIslandWindow, hideIsland, repositionIsland, showIsland } from './windows/island'
 
@@ -80,6 +81,19 @@ function buildMenu(): Menu {
         const enabled = item.checked
         patchSettings({ launchAtLogin: enabled })
         applyLoginItem(enabled)
+      }
+    },
+    {
+      label: 'Show in Discord',
+      type: 'checkbox',
+      checked: settings.discordPresence,
+      click: (item) => {
+        const enabled = item.checked
+        const next = patchSettings({ discordPresence: enabled })
+        syncDiscordPresence(enabled)
+        // The Settings tab is a second writer; keep it in step with the tray.
+        const win = getIslandWindow()
+        if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, next)
       }
     },
     { label: 'Settings…', click: () => openSection('settings') },

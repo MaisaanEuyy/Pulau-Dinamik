@@ -175,12 +175,28 @@ function Read-State {
       type = 'state'; active = $false; playing = $false; title = $null
       artist = $null; album = $null; app = $null; canPlayPause = $false
       canNext = $false; canPrevious = $false; artwork = $null
+      positionMs = $null; durationMs = $null
     }
   }
 
   $info = $session.GetPlaybackInfo()
   $properties = Await ($session.TryGetMediaPropertiesAsync()) $propsType
   $controls = $info.Controls
+
+  # Timeline powers the progress bar in the Discord card. Chrome reports a
+  # duration for videos but not for live streams, so both halves are optional.
+  $positionMs = $null
+  $durationMs = $null
+  try {
+    $timeline = $session.GetTimelineProperties()
+    if ($null -ne $timeline) {
+      $positionMs = [long][Math]::Max(0, $timeline.Position.TotalMilliseconds)
+      $length = $timeline.EndTime.TotalMilliseconds - $timeline.StartTime.TotalMilliseconds
+      if ($length -gt 0) { $durationMs = [long]$length }
+    }
+  } catch {
+    # No timeline: the card simply has no progress bar.
+  }
 
   $app = Format-AppName $session.SourceAppUserModelId
   $title = $properties.Title
@@ -197,6 +213,7 @@ function Read-State {
     canNext = [bool]$controls.IsNextEnabled
     canPrevious = [bool]$controls.IsPreviousEnabled
     artwork = $artwork
+    positionMs = $positionMs; durationMs = $durationMs
   }
 }
 
