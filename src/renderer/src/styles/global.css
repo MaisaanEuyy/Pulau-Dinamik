@@ -157,6 +157,23 @@ button {
   will-change: transform;
 }
 
+/* Tethered drag wrapper: a few pixels of give before it springs back. */
+.smiley-drag {
+  display: contents;
+}
+
+/* Poking and dragging are the toy's own gestures, so the cursor says so and a
+   tug never selects anything around it. */
+.smiley[data-interactive='true'] {
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+
+.smiley[data-interactive='true']:active {
+  cursor: grabbing;
+}
+
 /* Notes drifting off the face while a song is playing — the face is humming. */
 .smiley-notes {
   position: absolute;
@@ -233,6 +250,13 @@ button {
   animation: smiley-blink 5.4s infinite;
 }
 
+/* The startled face holds its gaze: no blinking while the knock is fresh or
+   while a poke reaction is playing. */
+.smiley[data-mood='alert'] .smiley-eye,
+.smiley[data-mood='poke'] .smiley-eye {
+  animation: none;
+}
+
 @keyframes smiley-blink {
   0%,
   91%,
@@ -245,6 +269,55 @@ button {
   95%,
   97% {
     transform: scaleY(1);
+  }
+}
+
+/* Asleep: three little z's drift up from the face. */
+.smiley-zzz {
+  position: absolute;
+  inset: 0;
+  color: inherit;
+  pointer-events: none;
+}
+
+.smiley-z {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0;
+  animation: smiley-z 4.2s ease-out infinite;
+  animation-delay: var(--z-delay, 0s);
+}
+
+.smiley-z--1 {
+  --z-dx: 5px;
+  --z-delay: 0s;
+}
+
+.smiley-z--2 {
+  --z-dx: 8px;
+  --z-delay: 1.4s;
+}
+
+.smiley-z--3 {
+  --z-dx: 11px;
+  --z-delay: 2.8s;
+}
+
+@keyframes smiley-z {
+  0% {
+    opacity: 0;
+    transform: translate(-2px, 2px) scale(0.6) rotate(-10deg);
+  }
+  25% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--z-dx, 8px), -12px) scale(1.15) rotate(8deg);
   }
 }
 
@@ -1570,9 +1643,10 @@ button {
 .settings-panel {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  justify-content: center;
+  gap: 2px;
   height: 100%;
-  padding: 6px 10px;
+  padding: 0 10px;
 }
 
 .settings-row {
@@ -1581,8 +1655,8 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  min-height: 32px;
-  padding: 3px 8px 3px 10px;
+  min-height: 23px;
+  padding: 1px 8px 1px 10px;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.015));
@@ -2246,7 +2320,8 @@ button {
 
 @media (prefers-reduced-motion: reduce) {
   .smiley-eye,
-  .smiley-note {
+  .smiley-note,
+  .smiley-z {
     animation: none;
   }
 }

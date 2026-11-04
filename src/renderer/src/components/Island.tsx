@@ -16,6 +16,7 @@ import { useVolumeHud } from '../hooks/useVolumeHud'
 import { MiniBar } from './MiniBar'
 import { Smiley } from './Smiley'
 import { TABS, TabPanel, type TabData, type TabId } from './tabs'
+import { useBatteryLow } from '../hooks/useBatteryLow'
 
 interface IslandProps {
   settings: Settings | null
@@ -58,9 +59,6 @@ export function Island({ settings, info }: IslandProps) {
   const [hovered, setHovered] = useState(false)
   const [pressed, setPressed] = useState(false)
   const [tab, setTab] = useState<TabId>(TABS[0].id)
-  /** The notification that opened the card: while it is set the Alerts panel
-   * shows only that one, as a full-size card, instead of the history. */
-  const [alertFocus, setAlertFocus] = useState<IslandNotification | null>(null)
   /** The window slides out of the top edge on hide; the island folds with it. */
   const [presence, setPresence] = useState<'visible' | 'leaving'>('visible')
   const clock = useClock()
@@ -83,6 +81,11 @@ export function Island({ settings, info }: IslandProps) {
   const keyboard = useKeyboard(visible && tab === 'keys')
   useAmbientColor(tab === 'media' && media.state?.active ? media.state.artwork : null)
 
+  // A running low on battery shows on the face (glum), not just in the panel.
+  // The Battery Status API reports straight from Chromium — no sampler needed.
+  const batteryLow = useBatteryLow()
+  const smileyInteractive = settings?.smileyInteractive ?? true
+
   const expanded = open || pinned
   const playing = media.state?.active === true && media.state.playing
   // The face nods to whatever Windows is playing; the meter only runs while
@@ -93,6 +96,11 @@ export function Island({ settings, info }: IslandProps) {
   /** The pointer (or Escape) took the card over during a notification HUD, so
    * nothing about the session gets put back. */
   const tookOver = useRef(false)
+  // A fresh notification takes the card over: it opens on the Alerts section and
+  // stays there for a few seconds, showing only the newest item. The face
+  // remembers the arrival's sequence number too, so it can be startled.
+  const [alertFocus, setAlertFocus] = useState<IslandNotification | null>(null)
+  const [alertSeq, setAlertSeq] = useState(0)
   /** While a notification is on screen the card must not close by itself —
    * losing the pointer or the focus would swallow the peek before it is read. */
   const alertFocusRef = useRef<IslandNotification | null>(null)
@@ -196,7 +204,8 @@ export function Island({ settings, info }: IslandProps) {
   }, [expanded, tab, markSeen, alertCount])
 
   // A fresh notification takes the card over: it opens on the Alerts section and
-  // stays there for a few seconds, showing only the newest item.
+  // stays there for a few seconds, showing only the newest item. The state
+  // itself lives next to the other card state above, with the leave timer.
   const openRef = useRef(open)
   openRef.current = open
   const pinnedRef = useRef(pinned)
@@ -230,6 +239,7 @@ export function Island({ settings, info }: IslandProps) {
         // down and open the card, so the item has room to be read.
         if (!visibleRef.current) void window.island.showIsland()
         setAlertFocus(notification)
+        setAlertSeq((seq) => seq + 1)
         if (!pinnedRef.current) setOpen(true)
         // Show the thing that just happened: the Alerts section, not whatever
         // tab was up (a song, the stats…) — the notification is the news here.
@@ -362,7 +372,15 @@ export function Island({ settings, info }: IslandProps) {
           setPinned((value) => !value)
         }}
       >
-        <Smiley hovered={hovered} pressed={pressed} playing={playing} beat={beat} />
+        <Smiley
+          hovered={hovered}
+          pressed={pressed}
+          playing={playing}
+          beat={beat}
+          alertSignal={alertSeq}
+          lowBattery={batteryLow}
+          interactive={smileyInteractive}
+        />
         {/* The mini view is the pill, not a strip on top of the open card: the
             card already shows the same track/statistics in full. */}
         {!expanded && (

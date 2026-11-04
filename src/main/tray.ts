@@ -96,6 +96,18 @@ function buildMenu(): Menu {
         if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, next)
       }
     },
+    {
+      label: 'Playful smiley',
+      type: 'checkbox',
+      checked: settings.smileyInteractive,
+      click: (item) => {
+        const enabled = item.checked
+        const next = patchSettings({ smileyInteractive: enabled })
+        // The Settings tab is a second writer; keep it in step with the tray.
+        const win = getIslandWindow()
+        if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, next)
+      }
+    },
     { label: 'Settings…', click: () => openSection('settings') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }

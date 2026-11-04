@@ -32,11 +32,15 @@ function sanitize(input: unknown): Settings {
     typeof raw.discordPresence === 'boolean'
       ? raw.discordPresence
       : DEFAULT_SETTINGS.discordPresence
+  const smileyInteractive =
+    typeof raw.smileyInteractive === 'boolean'
+      ? raw.smileyInteractive
+      : DEFAULT_SETTINGS.smileyInteractive
   const theme = THEME_MODES.includes(raw.theme as ThemeMode)
     ? (raw.theme as ThemeMode)
     : DEFAULT_SETTINGS.theme
 
-  return { topOffset, displayId, hotkey, launchAtLogin, discordPresence, theme }
+  return { topOffset, displayId, hotkey, launchAtLogin, discordPresence, smileyInteractive, theme }
 }
 
 export function getSettings(): Settings {

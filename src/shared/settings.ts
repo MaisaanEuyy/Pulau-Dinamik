@@ -18,6 +18,8 @@ export interface Settings {
   launchAtLogin: boolean
   /** Mirror the current track to the Discord profile as a "Listening" card. */
   discordPresence: boolean
+  /** Let the smiley be poked and dragged, and let it doze off when idle. */
+  smileyInteractive: boolean
   /** Light or dark island chrome. */
   theme: ThemeMode
 }
@@ -28,5 +30,6 @@ export const DEFAULT_SETTINGS: Settings = {
   hotkey: 'Control+Alt+Space',
   launchAtLogin: false,
   discordPresence: true,
+  smileyInteractive: true,
   theme: 'dark'
 }

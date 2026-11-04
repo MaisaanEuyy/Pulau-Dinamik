@@ -24,6 +24,7 @@ export function SettingsPanel({
   const theme = settings?.theme ?? 'dark'
   const launchAtLogin = settings?.launchAtLogin ?? false
   const discordPresence = settings?.discordPresence ?? true
+  const smileyInteractive = settings?.smileyInteractive ?? true
 
   return (
     <div className="settings-panel">
@@ -82,6 +83,22 @@ export function SettingsPanel({
           aria-label="Discord activity"
           data-on={discordPresence}
           onClick={() => patch({ discordPresence: !discordPresence })}
+        />
+      </div>
+
+      <div className="settings-row">
+        <span className="settings-text">
+          <span className="settings-label">Playful smiley</span>
+          <span className="settings-hint">Poke it, drag it, let it doze off</span>
+        </span>
+        <button
+          type="button"
+          className="settings-toggle"
+          role="switch"
+          aria-checked={smileyInteractive}
+          aria-label="Playful smiley"
+          data-on={smileyInteractive}
+          onClick={() => patch({ smileyInteractive: !smileyInteractive })}
         />
       </div>
 

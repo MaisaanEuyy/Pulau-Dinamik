@@ -186,6 +186,20 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       over), and the section you were on still comes back afterwards
 - [x] History rows are unchanged — the bigger type only applies to the peek
 
+**Revisions — playful smiley (paket ramai)** ✅ (unreleased)
+
+- [x] The face is a toy now: poke it and it cycles **startled → wink → bashful**
+      (one per tap, ~1.3 s each), and every reaction is silent — it never opens
+      or pins the card underneath
+- [x] Drag it a few pixels and it springs straight back; a real click next to the
+      face still opens the card as before
+- [x] A fresh notification startles it (wide eyes, open mouth) for the 1.6 s peek
+- [x] Left alone ~22 s it dozes (yawn), then sleeps with three little `z`s; any
+      pointer, music, poke or notification wakes it
+- [x] ≤20% battery on DC power turns it glum: small frown + one looping tear
+- [x] `Settings → Playful smiley` (and the tray checkbox) turns the toy off via
+      the new `smileyInteractive` flag, keeping the classic glance/nod/blink
+
 **Revisions — settings menu & readable notifications** ✅
 
 - [x] New **Settings** section in the tabbar: light/dark appearance, start with
@@ -416,6 +430,13 @@ resources/              generated icons (committed)
   before the app started so old history does not flood the list. It stays up for
   the app's lifetime — a hidden island still has to be able to pop open — and only
   the renderer unmounting (quit) stops it.
+- **The playful face**: a poke cycles `surprised → wink → shy` (one per tap),
+  a tug springs back, a notification startles it for the peek, idleness puts it
+  to sleep (`doze` after ~22 s, `yawn`, then `sleep` at ~28 s with three CSS
+  `z`s), and ≤20% battery on DC power turns it glum (frown + one looping tear).
+  Wakes on pointer, music, poke or notification. A poke/tug swallows its own
+  click so the header underneath never opens or pins. `smileyInteractive` in
+  `settings.json` (Settings row + tray checkbox) restores the plain glance/nod.
 - The face's nod reads the default output's peak level from Core Audio
   (`IAudioMeterInformation::GetPeakValue`) in the main process — one cheap COM call
   per frame — and sends it to the renderer over IPC only while the face is on
