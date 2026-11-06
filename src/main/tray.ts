@@ -7,10 +7,18 @@ import {
   type MenuItemConstructorOptions
 } from 'electron'
 import { join } from 'node:path'
+import {
+  ALL_FEATURES,
+  AUDIO_ONLY_FEATURES,
+  FEATURE_KEYS,
+  FEATURE_META,
+  allFeaturesOn,
+  isAudioOnly
+} from '../shared/features'
 import { IPC } from '../shared/ipc'
 import { applyLoginItem } from './autostart'
-import { syncDiscordPresence } from './services/discord'
-import { getSettings, patchSettings } from './settings'
+import { applyProfile, commitSettings } from './features'
+import { getSettings } from './settings'
 import { getIslandWindow, hideIsland, repositionIsland, showIsland } from './windows/island'
 
 let tray: Tray | null = null
@@ -29,7 +37,7 @@ function trayIconPath(): string {
 }
 
 function selectDisplay(displayId: number | null): void {
-  patchSettings({ displayId })
+  commitSettings({ displayId })
   repositionIsland()
 }
 
@@ -50,6 +58,8 @@ function buildMenu(): Menu {
   const settings = getSettings()
   const displays = screen.getAllDisplays()
   const visible = isVisible()
+  const audioOnly = isAudioOnly(settings.features, settings.discordPresence)
+  const everything = allFeaturesOn(settings.features, settings.discordPresence)
 
   const displayItems: MenuItemConstructorOptions[] = [
     {
@@ -66,6 +76,36 @@ function buildMenu(): Menu {
     }))
   ]
 
+  // The module submenu mirrors the Modules section, so the island can get
+  // lighter without opening the card at all.
+  const moduleItems: MenuItemConstructorOptions[] = [
+    ...FEATURE_KEYS.map<MenuItemConstructorOptions>((key) => ({
+      label: FEATURE_META[key].label,
+      type: 'checkbox',
+      checked: settings.features[key],
+      click: (item) => {
+        commitSettings({ features: { ...settings.features, [key]: item.checked } })
+      }
+    })),
+    { type: 'separator' },
+    {
+      label: 'Audio only',
+      type: 'checkbox',
+      checked: audioOnly,
+      click: () => {
+        applyProfile({ ...AUDIO_ONLY_FEATURES }, false)
+      }
+    },
+    {
+      label: 'Everything on',
+      type: 'checkbox',
+      checked: everything,
+      click: () => {
+        applyProfile({ ...ALL_FEATURES }, true)
+      }
+    }
+  ]
+
   return Menu.buildFromTemplate([
     {
       label: visible ? 'Hide island' : 'Show island',
@@ -79,7 +119,7 @@ function buildMenu(): Menu {
       checked: settings.launchAtLogin,
       click: (item) => {
         const enabled = item.checked
-        patchSettings({ launchAtLogin: enabled })
+        commitSettings({ launchAtLogin: enabled })
         applyLoginItem(enabled)
       }
     },
@@ -88,12 +128,7 @@ function buildMenu(): Menu {
       type: 'checkbox',
       checked: settings.discordPresence,
       click: (item) => {
-        const enabled = item.checked
-        const next = patchSettings({ discordPresence: enabled })
-        syncDiscordPresence(enabled)
-        // The Settings tab is a second writer; keep it in step with the tray.
-        const win = getIslandWindow()
-        if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, next)
+        commitSettings({ discordPresence: item.checked })
       }
     },
     {
@@ -101,13 +136,10 @@ function buildMenu(): Menu {
       type: 'checkbox',
       checked: settings.smileyInteractive,
       click: (item) => {
-        const enabled = item.checked
-        const next = patchSettings({ smileyInteractive: enabled })
-        // The Settings tab is a second writer; keep it in step with the tray.
-        const win = getIslandWindow()
-        if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, next)
+        commitSettings({ smileyInteractive: item.checked })
       }
     },
+    { label: 'Modules', submenu: moduleItems },
     { label: 'Settings…', click: () => openSection('settings') },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }

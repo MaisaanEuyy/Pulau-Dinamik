@@ -23,7 +23,6 @@ export function SettingsPanel({
 }) {
   const theme = settings?.theme ?? 'dark'
   const launchAtLogin = settings?.launchAtLogin ?? false
-  const discordPresence = settings?.discordPresence ?? true
   const smileyInteractive = settings?.smileyInteractive ?? true
 
   return (
@@ -67,22 +66,6 @@ export function SettingsPanel({
           aria-label="Start with Windows"
           data-on={launchAtLogin}
           onClick={() => patch({ launchAtLogin: !launchAtLogin })}
-        />
-      </div>
-
-      <div className="settings-row">
-        <span className="settings-text">
-          <span className="settings-label">Discord activity</span>
-          <span className="settings-hint">Show the current track on your profile</span>
-        </span>
-        <button
-          type="button"
-          className="settings-toggle"
-          role="switch"
-          aria-checked={discordPresence}
-          aria-label="Discord activity"
-          data-on={discordPresence}
-          onClick={() => patch({ discordPresence: !discordPresence })}
         />
       </div>
 

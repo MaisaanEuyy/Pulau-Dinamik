@@ -30,6 +30,13 @@ const api: IslandApi = {
   sendMediaCommand: (command: MediaCommand) =>
     ipcRenderer.invoke(IPC.mediaCommand, command) as Promise<void>,
   getAppInfo: () => ipcRenderer.invoke(IPC.appInfo) as Promise<AppInfo>,
+  onAppInfoChanged: (callback) => {
+    const handler = (_event: Electron.IpcRendererEvent, info: AppInfo): void => callback(info)
+    ipcRenderer.on(IPC.appInfoChanged, handler)
+    return () => {
+      ipcRenderer.removeListener(IPC.appInfoChanged, handler)
+    }
+  },
   onSettingsChanged: (callback) => {
     const handler = (_event: Electron.IpcRendererEvent, settings: Settings): void =>
       callback(settings)

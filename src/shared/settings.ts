@@ -1,3 +1,5 @@
+import { DEFAULT_FEATURES, type FeatureFlags } from './features'
+
 /** Colour scheme of the island. */
 export type ThemeMode = 'dark' | 'light'
 
@@ -20,6 +22,11 @@ export interface Settings {
   discordPresence: boolean
   /** Let the smiley be poked and dragged, and let it doze off when idle. */
   smileyInteractive: boolean
+  /**
+   * Optional modules that may be switched off to save CPU and memory. A disabled
+   * module stops its background work, it is not merely hidden.
+   */
+  features: FeatureFlags
   /** Light or dark island chrome. */
   theme: ThemeMode
 }
@@ -31,5 +38,6 @@ export const DEFAULT_SETTINGS: Settings = {
   launchAtLogin: false,
   discordPresence: true,
   smileyInteractive: true,
+  features: { ...DEFAULT_FEATURES },
   theme: 'dark'
 }

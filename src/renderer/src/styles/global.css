@@ -1649,6 +1649,17 @@ button {
   padding: 0 10px;
 }
 
+/* The five module rows need one line more than the settings card, so the same
+   shell is reused with tighter spacing. */
+.modules-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 1px;
+  height: 100%;
+  padding: 0 10px;
+}
+
 .settings-row {
   display: flex;
   flex: 0 0 auto;
@@ -1777,6 +1788,114 @@ button {
   letter-spacing: 0.01em;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+}
+
+/* ----------------------------------------------------------------- modules tab
+   Five two-line rows plus a preset strip are one line taller than the settings
+   card, so the text keeps its size but loses the extra leading. */
+
+.modules-panel .module-row {
+  gap: 8px;
+  min-height: 24px;
+  padding-top: 0;
+  padding-bottom: 0;
+  padding-left: 7px;
+}
+
+.modules-panel .settings-text {
+  gap: 0;
+}
+
+.modules-panel .settings-label {
+  line-height: 1.25;
+}
+
+.modules-panel .settings-hint {
+  line-height: 1.2;
+}
+
+.module-icon {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(235, 238, 246, 0.32);
+  transition:
+    color 160ms ease,
+    background-color 160ms ease;
+}
+
+.module-row[data-on='true'] .module-icon {
+  background: rgba(125, 211, 252, 0.16);
+  color: #7dd3fc;
+}
+
+.modules-presets {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 3px;
+  margin-top: 2px;
+}
+
+.modules-preset {
+  display: inline-flex;
+  flex: 1 1 0;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 21px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.02));
+  color: rgba(235, 238, 246, 0.58);
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  cursor: pointer;
+  transition:
+    background 150ms ease,
+    color 150ms ease,
+    border-color 150ms ease;
+}
+
+.modules-preset:hover {
+  color: rgba(245, 247, 252, 0.9);
+}
+
+.modules-preset[data-active='true'] {
+  border-color: rgba(125, 211, 252, 0.38);
+  background: linear-gradient(180deg, rgba(125, 211, 252, 0.24), rgba(125, 211, 252, 0.1));
+  color: #ecf8ff;
+}
+
+:root[data-theme='light'] .module-icon {
+  background: rgba(15, 23, 42, 0.06);
+  color: rgba(23, 26, 33, 0.42);
+}
+
+:root[data-theme='light'] .module-row[data-on='true'] .module-icon {
+  background: rgba(2, 132, 199, 0.16);
+  color: #0369a1;
+}
+
+:root[data-theme='light'] .modules-preset {
+  border-color: rgba(15, 23, 42, 0.08);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(255, 255, 255, 0.5));
+  color: rgba(23, 26, 33, 0.6);
+}
+
+:root[data-theme='light'] .modules-preset:hover {
+  color: #0b0c10;
+}
+
+:root[data-theme='light'] .modules-preset[data-active='true'] {
+  border-color: rgba(2, 132, 199, 0.4);
+  background: linear-gradient(180deg, rgba(2, 132, 199, 0.16), rgba(2, 132, 199, 0.08));
+  color: #075985;
 }
 
 /* ---------------------------------------------------------------- light theme

@@ -1,6 +1,7 @@
 import { app } from 'electron'
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { sanitizeFeatures, DEFAULT_FEATURES } from '../shared/features'
 import { DEFAULT_SETTINGS, THEME_MODES, type Settings, type ThemeMode } from '../shared/settings'
 
 let cache: Settings | null = null
@@ -39,8 +40,18 @@ function sanitize(input: unknown): Settings {
   const theme = THEME_MODES.includes(raw.theme as ThemeMode)
     ? (raw.theme as ThemeMode)
     : DEFAULT_SETTINGS.theme
+  const features = sanitizeFeatures(raw.features)
 
-  return { topOffset, displayId, hotkey, launchAtLogin, discordPresence, smileyInteractive, theme }
+  return {
+    topOffset,
+    displayId,
+    hotkey,
+    launchAtLogin,
+    discordPresence,
+    smileyInteractive,
+    features,
+    theme
+  }
 }
 
 export function getSettings(): Settings {
@@ -48,17 +59,21 @@ export function getSettings(): Settings {
     try {
       cache = sanitize(JSON.parse(readFileSync(settingsFilePath(), 'utf8')))
     } catch {
-      cache = { ...DEFAULT_SETTINGS }
+      cache = { ...DEFAULT_SETTINGS, features: { ...DEFAULT_FEATURES } }
     }
   }
-  return { ...cache }
+  return { ...cache, features: { ...cache.features } }
 }
 
 export function patchSettings(patch: Partial<Settings>): Settings {
-  const next = sanitize({ ...getSettings(), ...patch })
+  const current = getSettings()
+  // `features` is the only nested object; merge it so a caller may send just the
+  // switches it touched instead of a whole copy.
+  const features = sanitizeFeatures({ ...current.features, ...(patch.features ?? {}) })
+  const next = sanitize({ ...current, ...patch, features })
   cache = next
   persist(next)
-  return { ...next }
+  return { ...next, features: { ...next.features } }
 }
 
 function persist(settings: Settings): void {

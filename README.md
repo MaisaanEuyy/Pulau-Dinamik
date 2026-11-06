@@ -26,8 +26,8 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
 - [x] Click the pill to open, click the header again to pin, `Esc` to collapse,
       blur auto-collapses, unpinned cards close 280 ms after the pointer leaves
 - [x] Pin and hide buttons, live clock in the pill
-- [x] Five sections (Media / System / Keys / Alerts / Settings) with a sliding
-      tab indicator, `←`/`→` to switch
+- [x] Five sections (Media / System / Keys / Alerts / Settings; Modules joined in
+      the feature-toggle pass) with a sliding tab indicator, `←`/`→` to switch
 - [x] Layered glass styling: specular top edge, radial sheen, inset shading
 - [x] `npm run smoke` now also checks open, pin, Esc collapse and state reset on hide
 
@@ -217,6 +217,30 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       the Discord profile as a *Listening* card, with the album-art slot, a
       progress bar and a “• Paused” suffix — see **Discord activity**
 
+**Revisions — module switches (Tier 1)** ✅ (unreleased)
+
+- [x] New **Modules** section between Alerts and Settings: one switch each for
+      System monitor, Keyboard lights, Notifications, Beat visualiser and Discord
+      activity, plus two presets — **Audio only** and **Everything on**
+- [x] Turning a module off really stops it: its timers, hooks, IPC handler and
+      PowerShell helper are released, the section disappears from the tabbar and
+      the mini view, and nothing starts again until you open its section (lazy
+      start). It is not just a hidden panel
+- [x] **Audio only** keeps the island to its job as a music pill: media, the
+      beat-reactive face and the volume HUD stay, Discord is switched off and
+      System / Keys / Notifications are stopped
+- [x] **Everything on** restores all five modules in one click
+- [x] The same five switches live in the tray's **Modules** submenu, so a
+      collapsed island can be trimmed without opening it
+- [x] The Discord toggle moved out of Settings into Modules (Settings keeps
+      Appearance, Start with Windows, Playful smiley and Toggle hotkey)
+- [x] Flags persist in `settings.json` under `features`; a settings file without
+      the key loads with everything on
+- [x] Installer size does **not** shrink — Chromium is the bulk of it. The win is
+      runtime: on this machine the full set sits around 620 MB (Electron + two
+      helper processes) and Audio only shaves one helper (~75 MB) off that
+- [x] `npm run smoke` reports the active feature set alongside the usual checks
+
 Next: per-app notification filters.
 
 ## Try it
@@ -242,11 +266,14 @@ npm run dev
 - The **Alerts** section mirrors your Windows notifications and also lists
   anything posted through the local API (see below); it keeps a red dot on the tab
   while new ones are waiting.
+- The **Modules** section switches individual features off (System, Keys,
+  Notifications, Beat, Discord) or trims the island with the **Audio only**
+  preset — see **Modules** below.
 - The **Settings** section switches the island between dark and light, toggles
-  start-with-Windows, mirrors the current track to Discord and shows the current
-  hotkey; the tray's **Settings…** entry opens it from anywhere.
+  start-with-Windows and Playful smiley, and shows the current hotkey; the tray's
+  **Settings…** entry opens it from anywhere.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
-  display selection, launch-at-login and quit.
+  display selection, the Modules submenu, launch-at-login and quit.
 
 ## Notifications
 
@@ -271,11 +298,45 @@ forwarded to the Alerts section, labelled with the app that sent it.
 - Text and app names stay in memory (last 24) and are never sent anywhere; the
   helper writes no files, just one JSON line per toast over the pipe.
 
+## Modules
+
+Not every island is for everyone. The **Modules** section (and the tray's
+**Modules** submenu) turns features off for real, so an island that only plays
+music does not pay for the system sampler, the keyboard hook or the notification
+bridge.
+
+| Switch | What stops when it is off |
+| --- | --- |
+| System monitor | 1 s CPU/RAM tick, 5 s GPU and 15 s disk/battery loops, network counters |
+| Keyboard lights | `WH_KEYBOARD_LL` hook, lock-state polling, typing meter |
+| Notifications | WinRT toast listener, local API, Alerts section |
+| Beat visualiser | Core Audio peak meter that drives the face |
+| Discord activity | named-pipe Rich Presence client |
+
+- The switched-off section disappears from the tabbar and from the `←`/`→` cycle;
+  if you were on it, the island falls back to Media. Media itself is the island's
+  job and is always on — it cannot be switched off.
+- Turning a module back on does **not** start it immediately: the tab appears
+  again, and its timers/hook/helper start the first time you open that section
+  (or, for Discord, the next time a track plays while the island is visible).
+  Nothing is spun up in the background just because the flag flipped.
+- **Audio only** sets System, Keys and Notifications off, leaves Beat on, and
+  switches Discord off; **Everything on** restores all five.
+- Flags persist in `settings.json` under `features`. A file written by an older
+  version (no `features` key) loads with everything on, so upgrading changes
+  nothing until you touch a switch.
+- Installer size does **not** change — Chromium is the bulk of the package either
+  way. The saving shows up at runtime: the full set here is about 620 MB across
+  Electron plus two PowerShell helpers; Audio only drops the helper that only the
+  toast/system work needs (~75 MB), and keeps one shared with media.
+- Media and notifications share the same PowerShell helper, so switching off
+  Notifications alone only frees it when Media is not subscribed either.
+
 ## Discord activity
 
 The island can mirror the current track to your Discord profile as a **Listening**
-card, so friends see it without opening the island. Switch it off from the tray
-menu (*Show in Discord*) or the Settings tab.
+card, so friends see it without opening the island. Switch it off in the
+**Modules** section (or the tray's *Modules* submenu).
 
 - It talks to the desktop client over its local named pipe (`\\.\pipe\discord-ipc-*`)
   — no bot, no token, no network traffic. Discord has to be **running and logged
@@ -346,7 +407,7 @@ npm run icons     # regenerate tray/app icons in ./resources
 npm run dist
 ```
 
-That writes `release/Dynamic Island KW Setup 0.1.0.exe` (NSIS, x64, ~116 MB).
+That writes `release/Dynamic Island KW Setup 0.1.3.exe` (NSIS, x64, ~116 MB).
 Run it and the app installs per-user into
 `%LOCALAPPDATA%\Programs\Dynamic Island KW` — no admin prompt — with a desktop
 shortcut and a Start Menu entry.
@@ -379,6 +440,7 @@ src/
     services/notifications.ts local HTTP API (POST /notify) + in-memory list
     services/toasts.ts  Windows notification-centre parser + subscription
     services/system.ts  system sampler (os + koffi + systeminformation)
+    features.ts         module gating: subscriber counters, presets, commitSettings
     settings.ts         tiny JSON settings store (no dependency)
     autostart.ts        Windows "run at login" sync
     tray.ts             tray icon + context menu
@@ -452,6 +514,15 @@ resources/              generated icons (committed)
   content is padded to clear the pin/close buttons, which sit at `z-index: 5` on
   top). Insetting the panel itself left a hard seam that made the expanded header
   look lopsided.
+- **Module gating** (`src/main/features.ts`): each feature keeps a subscriber
+  counter, not a boolean, because the Media/System/Keys panels subscribe and
+  unsubscribe as you move about. A disabled feature refuses new subscriptions and
+  tears down the existing ones immediately; `applyFeatures` diffs old vs new and
+  only stops what was turned off, so re-enabling never starts a sampler until
+  something asks for it again. Every writer — the Modules panel, the tray submenu
+  and the presets — goes through the same `commitSettings`, so `settings.json` has
+  one author. Hiding the island still resets subscriptions and releases media, but
+  Discord presence and the (enabled) toast bridge stay up on purpose.
 - No native `title` tooltips inside the island — Windows renders them as a separate
   always-on-top window that covers the card.
 - `systeminformation` is slow on Windows (its `currentLoad`/`networkStats` wait

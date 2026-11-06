@@ -1,5 +1,6 @@
-import { Activity, Bell, Keyboard, Music2, Settings as SettingsIcon } from 'lucide-react'
+import { Activity, Bell, Boxes, Keyboard, Music2, Settings as SettingsIcon } from 'lucide-react'
 import type { ElementType } from 'react'
+import type { FeatureFlags, FeatureKey } from '@shared/features'
 import type { MediaCommand, MediaState } from '@shared/media'
 import type { IslandNotification } from '@shared/notifications'
 import type { Settings } from '@shared/settings'
@@ -9,6 +10,7 @@ import type { NotificationsStore } from '../hooks/useNotifications'
 import { AlertsPanel } from './AlertsPanel'
 import { KeysPanel } from './KeysPanel'
 import { MediaPanel } from './MediaPanel'
+import { ModulesPanel } from './ModulesPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { SystemPanel } from './SystemPanel'
 
@@ -19,6 +21,8 @@ export interface TabDefinition {
   description: string
   milestone: string
   icon: ElementType
+  /** Omitted for sections that can never be switched off. */
+  feature?: FeatureKey
 }
 
 export const TABS: readonly TabDefinition[] = [
@@ -36,7 +40,8 @@ export const TABS: readonly TabDefinition[] = [
     headline: 'System monitoring',
     description: 'CPU, memory, GPU, disk, network and battery at a glance.',
     milestone: 'Milestone 3',
-    icon: Activity
+    icon: Activity,
+    feature: 'system'
   },
   {
     id: 'keys',
@@ -44,7 +49,8 @@ export const TABS: readonly TabDefinition[] = [
     headline: 'Keyboard indicator',
     description: 'Key presses and lock states — without ever logging what you type.',
     milestone: 'Milestone 5',
-    icon: Keyboard
+    icon: Keyboard,
+    feature: 'keyboard'
   },
   {
     id: 'alerts',
@@ -52,19 +58,33 @@ export const TABS: readonly TabDefinition[] = [
     headline: 'Notifications',
     description: 'Toasts from your own scripts and tools through the local notification API.',
     milestone: 'Milestone 6',
-    icon: Bell
+    icon: Bell,
+    feature: 'notifications'
+  },
+  {
+    id: 'modules',
+    label: 'Modules',
+    headline: 'Modules',
+    description: 'Turn off the parts you do not use — they stop running, not just hide.',
+    milestone: 'Milestone 8',
+    icon: Boxes
   },
   {
     id: 'settings',
     label: 'Settings',
     headline: 'Settings',
-    description: 'Appearance, startup, Discord and the hotkey.',
+    description: 'Appearance, startup and the hotkey.',
     milestone: 'Milestone 7',
     icon: SettingsIcon
   }
 ]
 
 export type TabId = (typeof TABS)[number]['id']
+
+/** The sections the tabbar shows for a given set of module flags. */
+export function visibleTabs(features: FeatureFlags): readonly TabDefinition[] {
+  return TABS.filter((entry) => !entry.feature || features[entry.feature])
+}
 
 /**
  * Data for every section is owned by the island itself, so the header mini view
@@ -95,6 +115,9 @@ export function TabPanel({
   if (tab.id === 'media') return <MediaPanel state={data.media.state} send={data.media.send} />
   if (tab.id === 'system') return <SystemPanel snapshot={data.system} />
   if (tab.id === 'keys') return <KeysPanel activity={data.keyboard} />
+  if (tab.id === 'modules') {
+    return <ModulesPanel settings={data.settings.value} patch={data.settings.patch} />
+  }
   if (tab.id === 'settings') {
     return <SettingsPanel settings={data.settings.value} patch={data.settings.patch} />
   }

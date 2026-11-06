@@ -22,9 +22,15 @@ export default function App() {
     })()
 
     const unsubscribe = window.island.onSettingsChanged(setSettings)
+
+    // The notification API starts and stops with its module, so the port the
+    // Alerts section prints can move when a module is switched.
+    const unsubscribeInfo = window.island.onAppInfoChanged(setInfo)
+
     return () => {
       alive = false
       unsubscribe()
+      unsubscribeInfo()
     }
   }, [])
 

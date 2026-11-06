@@ -5,7 +5,6 @@ import type { Settings } from '../shared/settings'
 import { syncLoginItem, applyLoginItem } from './autostart'
 import {
   getVolumeState,
-  startBeatWatcher,
   startVolumeWatcher,
   stopBeatWatcher,
   stopVolumeWatcher
@@ -19,11 +18,7 @@ import {
   subscribeMedia,
   unsubscribeMedia
 } from './services/media'
-import {
-  getSystemSnapshot,
-  startSystemSampler,
-  stopSystemSampler
-} from './services/system'
+import { getSystemSnapshot, startSystemSampler, stopSystemSampler } from './services/system'
 import {
   clearNotifications,
   getNotifications,
@@ -38,9 +33,19 @@ import {
   subscribeToasts,
   unsubscribeToasts
 } from './services/toasts'
+import {
+  commitSettings,
+  resetSubscriptions,
+  subscribeBeat,
+  subscribeKeys,
+  subscribeSystem,
+  unsubscribeBeat,
+  unsubscribeKeys,
+  unsubscribeSystem
+} from './features'
 import { getSettings, patchSettings, settingsFilePath } from './settings'
 import { createTray, destroyTray } from './tray'
-import { startDiscordPresence, stopDiscordPresence, syncDiscordPresence, isDiscordConnected } from './services/discord'
+import { startDiscordPresence, stopDiscordPresence, isDiscordConnected } from './services/discord'
 import { stopBridge } from './services/winrt'
 import {
   createIslandWindow,
@@ -59,11 +64,6 @@ const smokeTest = process.argv.includes('--smoke-test')
 
 let hotkeyRegistered = false
 let rendererReady = false
-/** The mini view keeps a panel subscribed while collapsed, so both the mini
- * and the full panel can hold a subscription at the same time. */
-let systemSubscribers = 0
-let keyboardSubscribers = 0
-let beatSubscribers = 0
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
@@ -81,26 +81,19 @@ function registerHotkey(): void {
   }
 }
 
-function broadcastSettings(settings: Settings): void {
-  const win = getIslandWindow()
-  if (win && !win.isDestroyed()) win.webContents.send(IPC.settingsChanged, settings)
-}
-
 function registerIpc(): void {
   ipcMain.handle(IPC.settingsGet, () => getSettings())
 
   ipcMain.handle(IPC.settingsPatch, (_event, patch: Partial<Settings>) => {
     const previous = getSettings()
-    const next = patchSettings(patch ?? {})
+    const next = commitSettings(patch ?? {})
 
     if (previous.hotkey !== next.hotkey) registerHotkey()
     if (previous.topOffset !== next.topOffset || previous.displayId !== next.displayId) {
       repositionIsland()
     }
     if (previous.launchAtLogin !== next.launchAtLogin) applyLoginItem(next.launchAtLogin)
-    if (previous.discordPresence !== next.discordPresence) syncDiscordPresence(next.discordPresence)
 
-    broadcastSettings(next)
     return next
   })
 
@@ -116,14 +109,8 @@ function registerIpc(): void {
     return Boolean(win && !win.isDestroyed() && win.isVisible())
   })
 
-  ipcMain.handle(IPC.systemSubscribe, () => {
-    systemSubscribers += 1
-    return startSystemSampler()
-  })
-  ipcMain.handle(IPC.systemUnsubscribe, () => {
-    systemSubscribers = Math.max(0, systemSubscribers - 1)
-    if (systemSubscribers === 0) stopSystemSampler()
-  })
+  ipcMain.handle(IPC.systemSubscribe, () => subscribeSystem())
+  ipcMain.handle(IPC.systemUnsubscribe, () => unsubscribeSystem())
 
   ipcMain.handle(IPC.mediaSubscribe, () => subscribeMedia())
   ipcMain.handle(IPC.mediaUnsubscribe, () => {
@@ -133,30 +120,22 @@ function registerIpc(): void {
     sendMediaCommand(command)
   })
 
-  ipcMain.handle(IPC.beatSubscribe, () => {
-    beatSubscribers += 1
-    startBeatWatcher()
-  })
-  ipcMain.handle(IPC.beatUnsubscribe, () => {
-    beatSubscribers = Math.max(0, beatSubscribers - 1)
-    if (beatSubscribers === 0) stopBeatWatcher()
-  })
+  ipcMain.handle(IPC.beatSubscribe, () => subscribeBeat())
+  ipcMain.handle(IPC.beatUnsubscribe, () => unsubscribeBeat())
 
-  ipcMain.handle(IPC.keyboardSubscribe, () => {
-    keyboardSubscribers += 1
-    return subscribeKeyboard()
-  })
-  ipcMain.handle(IPC.keyboardUnsubscribe, () => {
-    keyboardSubscribers = Math.max(0, keyboardSubscribers - 1)
-    if (keyboardSubscribers === 0) unsubscribeKeyboard()
-  })
+  ipcMain.handle(IPC.keyboardSubscribe, () => subscribeKeys())
+  ipcMain.handle(IPC.keyboardUnsubscribe, () => unsubscribeKeys())
 
   ipcMain.handle(IPC.notificationsGet, () => getNotifications())
   ipcMain.handle(IPC.notificationsClear, () => {
     clearNotifications()
   })
 
-  ipcMain.handle(IPC.toastsSubscribe, () => subscribeToasts())
+  ipcMain.handle(IPC.toastsSubscribe, () => {
+    // A stale renderer must not wake the toast bridge while Alerts is off.
+    if (!getSettings().features.notifications) return getToastAccess()
+    return subscribeToasts()
+  })
   ipcMain.handle(IPC.toastsUnsubscribe, () => {
     unsubscribeToasts()
   })
@@ -611,17 +590,15 @@ async function bootstrap(): Promise<void> {
 
   registerIpc()
   // The notification API must be listening before the renderer asks for the
-  // app info (the Alerts section shows the port).
-  await startNotificationServer()
+  // app info (the Alerts section shows the port). When the module is off the
+  // server is never bound, so nothing listens on the port at all.
+  if (getSettings().features.notifications || smokeTest) await startNotificationServer()
 
   const win = createIslandWindow({ showOnReady: !launchedHidden })
   // Safety net: the renderer normally unsubscribes, but hiding must always idle us.
   win.on('hide', () => {
-    systemSubscribers = 0
-    keyboardSubscribers = 0
-    stopSystemSampler()
+    resetSubscriptions()
     releaseMedia()
-    unsubscribeKeyboard()
   })
   createTray()
   registerHotkey()

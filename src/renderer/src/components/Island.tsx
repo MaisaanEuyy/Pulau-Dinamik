@@ -1,7 +1,8 @@
 import { AnimatePresence, motion, useReducedMotion, type Transition } from 'framer-motion'
 import { Pin, Volume, Volume1, Volume2, VolumeX, X } from 'lucide-react'
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { AppInfo } from '@shared/api'
+import { DEFAULT_FEATURES } from '@shared/features'
 import { ISLAND_LAYOUT } from '@shared/layout'
 import type { IslandNotification } from '@shared/notifications'
 import type { Settings } from '@shared/settings'
@@ -15,7 +16,7 @@ import { useSystemStats } from '../hooks/useSystemStats'
 import { useVolumeHud } from '../hooks/useVolumeHud'
 import { MiniBar } from './MiniBar'
 import { Smiley } from './Smiley'
-import { TABS, TabPanel, type TabData, type TabId } from './tabs'
+import { TABS, TabPanel, visibleTabs, type TabData, type TabId } from './tabs'
 import { useBatteryLow } from '../hooks/useBatteryLow'
 
 interface IslandProps {
@@ -54,6 +55,9 @@ function useClock(): string {
 
 export function Island({ settings, info }: IslandProps) {
   const reducedMotion = useReducedMotion() ?? false
+  const features = settings?.features ?? DEFAULT_FEATURES
+  /** Only the modules that are switched on get a section (and a subscription). */
+  const tabs = useMemo(() => visibleTabs(features), [features])
   const [open, setOpen] = useState(false)
   const [pinned, setPinned] = useState(false)
   const [hovered, setHovered] = useState(false)
@@ -65,7 +69,7 @@ export function Island({ settings, info }: IslandProps) {
   const volume = useVolumeHud()
 
   const visible = useIslandVisibility()
-  const notifications = useNotifications()
+  const notifications = useNotifications(features.notifications)
 
   const patchSettings = useCallback((patch: Partial<Settings>) => {
     // The main process persists the patch and broadcasts the merged settings
@@ -77,8 +81,8 @@ export function Island({ settings, info }: IslandProps) {
   // Media stays subscribed the whole time the island is on screen: the face
   // reacts to the song from any section, not just Media.
   const media = useMedia(visible)
-  const system = useSystemStats(visible && tab === 'system')
-  const keyboard = useKeyboard(visible && tab === 'keys')
+  const system = useSystemStats(visible && tab === 'system' && features.system)
+  const keyboard = useKeyboard(visible && tab === 'keys' && features.keyboard)
   useAmbientColor(tab === 'media' && media.state?.active ? media.state.artwork : null)
 
   // A running low on battery shows on the face (glum), not just in the panel.
@@ -90,7 +94,7 @@ export function Island({ settings, info }: IslandProps) {
   const playing = media.state?.active === true && media.state.playing
   // The face nods to whatever Windows is playing; the meter only runs while
   // there is something to dance to.
-  const beat = useBeat(visible && playing && !reducedMotion)
+  const beat = useBeat(visible && playing && !reducedMotion && features.beat)
 
   const leaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** The pointer (or Escape) took the card over during a notification HUD, so
@@ -148,13 +152,13 @@ export function Island({ settings, info }: IslandProps) {
   useEffect(
     () =>
       window.island.onOpenSection((section) => {
-        if (!TABS.some((entry) => entry.id === section)) return
+        if (!tabs.some((entry) => entry.id === section)) return
         cancelLeave()
         setTab(section)
         setPinned(true)
         setOpen(true)
       }),
-    [cancelLeave]
+    [cancelLeave, tabs]
   )
 
   // Hiding is a two-step dance with the main process: the island folds toward
@@ -186,15 +190,23 @@ export function Island({ settings, info }: IslandProps) {
 
       event.preventDefault()
       setTab((current) => {
-        const index = TABS.findIndex((entry) => entry.id === current)
+        const index = tabs.findIndex((entry) => entry.id === current)
         const step = event.key === 'ArrowRight' ? 1 : -1
-        return TABS[(index + step + TABS.length) % TABS.length].id
+        const from = index < 0 ? 0 : index
+        return tabs[(from + step + tabs.length) % tabs.length].id
       })
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [expanded, collapse])
+  }, [expanded, collapse, tabs])
+
+  // A module can be switched off while its section is open. Fall back to the
+  // first section that still exists instead of rendering a hidden one.
+  useEffect(() => {
+    if (tabs.some((entry) => entry.id === tab)) return
+    setTab(tabs[0].id)
+  }, [tabs, tab])
 
   // Keep the Alerts badge honest while the section is on screen.
   const markSeen = notifications.markSeen
@@ -214,6 +226,8 @@ export function Island({ settings, info }: IslandProps) {
   visibleRef.current = visible
   const tabRef = useRef<TabId>(tab)
   tabRef.current = tab
+  const alertsEnabledRef = useRef(features.notifications)
+  alertsEnabledRef.current = features.notifications
   /** A HUD session is running (several notifications can pile into one). */
   const hudActive = useRef(false)
   /** This notification opened the card, so it may close it again. */
@@ -226,6 +240,8 @@ export function Island({ settings, info }: IslandProps) {
   useEffect(
     () =>
       window.island.onNotification((notification) => {
+        // Alerts can be switched off; a stale event must not open a hidden tab.
+        if (!alertsEnabledRef.current) return
         // The first notification of a burst decides what has to be restored
         // afterwards; a second one must not forget that the island was hidden.
         if (!hudActive.current) {
@@ -286,8 +302,8 @@ export function Island({ settings, info }: IslandProps) {
     return () => clearTimeout(timer)
   }, [expanded, reducedMotion])
 
-  const activeTab = TABS.find((entry) => entry.id === tab) ?? TABS[0]
-  const notifyPort = info?.notifyPort ?? null
+  const activeTab = tabs.find((entry) => entry.id === tab) ?? tabs[0]
+  const notifyPort = features.notifications ? (info?.notifyPort ?? null) : null
 
   const data: TabData = {
     media,
@@ -486,7 +502,7 @@ export function Island({ settings, info }: IslandProps) {
         </div>
 
         <nav className="island-tabbar" aria-label="Island sections">
-          {TABS.map((entry) => {
+          {tabs.map((entry) => {
             const Icon = entry.icon
             const active = entry.id === activeTab.id
 

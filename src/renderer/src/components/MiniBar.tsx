@@ -1,5 +1,6 @@
 import {
   Bell,
+  Boxes,
   Music2,
   Pause,
   Play,
@@ -241,6 +242,34 @@ function SettingsMini({ data }: { data: TabData['settings'] }) {
   )
 }
 
+/** How many modules are running, so the pill says something useful about it. */
+function ModulesMini({ data }: { data: TabData['settings'] }) {
+  const features = data.value?.features
+  const discord = data.value?.discordPresence ?? false
+  const running = features
+    ? Number(features.system) +
+      Number(features.keyboard) +
+      Number(features.notifications) +
+      Number(features.beat) +
+      Number(discord)
+    : 0
+  const total = 5
+
+  return (
+    <div className="mini mini--modules">
+      <span className="mini-art" data-empty="true">
+        <Boxes size={12} strokeWidth={1.9} />
+      </span>
+      <span className="mini-text">
+        <span className="mini-title">Modules</span>
+        <span className="mini-sub">
+          {running} of {total} running
+        </span>
+      </span>
+    </div>
+  )
+}
+
 /** Compact per-section view that fills the collapsed pill. */
 export function MiniBar({
   tab,
@@ -255,5 +284,6 @@ export function MiniBar({
   if (tab.id === 'system') return <SystemMini data={data.system} />
   if (tab.id === 'keys') return <KeysMini data={data.keyboard} />
   if (tab.id === 'settings') return <SettingsMini data={data.settings} />
+  if (tab.id === 'modules') return <ModulesMini data={data.settings} />
   return <AlertsMini data={data.alerts} port={notifyPort} />
 }

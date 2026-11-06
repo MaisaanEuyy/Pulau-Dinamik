@@ -41,6 +41,8 @@ export interface IslandApi {
   /** Sends a transport command to the current media session. */
   sendMediaCommand(command: MediaCommand): Promise<void>
   getAppInfo(): Promise<AppInfo>
+  /** Fired when the app info changes (the notification API starts or stops). */
+  onAppInfoChanged(callback: (info: AppInfo) => void): () => void
   onSettingsChanged(callback: (settings: Settings) => void): () => void
   /** Fired when the island is hidden (hotkey, tray or the close button). */
   onHidden(callback: () => void): () => void

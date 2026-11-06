@@ -37,5 +37,7 @@ export const IPC = {
   toastsUnsubscribe: 'toasts:unsubscribe',
   toastsAccess: 'toasts:access',
   appInfo: 'app:info',
+  /** Main → renderer: the notification API started or stopped, so the port moved. */
+  appInfoChanged: 'app:info-changed',
   rendererReady: 'renderer:ready'
 } as const
