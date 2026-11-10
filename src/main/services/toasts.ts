@@ -2,7 +2,13 @@ import { IPC } from '../../shared/ipc'
 import type { ToastAccess } from '../../shared/toast'
 import { getIslandWindow } from '../windows/island'
 import { pushNotification } from './notifications'
-import { onBridgeMessage, releaseBridge, retainBridge } from './winrt'
+import {
+  onBridgeMessage,
+  onBridgeStart,
+  releaseBridge,
+  retainBridge,
+  sendBridge
+} from './winrt'
 
 /** The listener runs for the app's lifetime: a hidden island still pops open for
  * notifications. The idle stop only applies once the renderer unsubscribes. */
@@ -53,6 +59,10 @@ onBridgeMessage((raw) => {
   }
 
   if (raw.type !== 'toast') return
+  // The helper is shared with the media bridge, so it can still be running
+  // after the Notifications module was switched off. Nothing must reach the
+  // list or the renderer in that state.
+  if (!holding) return
 
   const key = typeof raw.key === 'string' ? raw.key : null
   if (!key || seen.has(key)) return
@@ -91,6 +101,7 @@ export function subscribeToasts(): Promise<ToastAccess> {
     holding = true
     retainBridge()
   }
+  sendBridge('toast:on')
   return Promise.resolve(access)
 }
 
@@ -102,6 +113,7 @@ export function unsubscribeToasts(): void {
     idleTimer = null
     if (subscribers > 0 || !holding) return
     holding = false
+    sendBridge('toast:off')
     releaseBridge(0)
   }, IDLE_STOP_MS)
 }
@@ -118,6 +130,13 @@ export function stopToastHelper(): void {
   }
   if (holding) {
     holding = false
+    sendBridge('toast:off')
     releaseBridge(0)
   }
 }
+
+// A freshly spawned helper starts with both halves off: re-arm the listener so
+// a respawn (crash retry, idle stop) does not silently stop mirroring.
+onBridgeStart(() => {
+  if (holding) sendBridge('toast:on')
+})

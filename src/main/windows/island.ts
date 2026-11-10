@@ -103,7 +103,9 @@ export function createIslandWindow(options: { showOnReady: boolean }): BrowserWi
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
-      backgroundThrottling: false,
+      // Low memory mode lets Chromium throttle the hidden island; normally the
+      // renderer must keep animating while tucked away so the show is instant.
+      backgroundThrottling: !getSettings().lowMemoryMode,
       spellcheck: false
     }
   })

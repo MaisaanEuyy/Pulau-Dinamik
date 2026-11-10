@@ -67,6 +67,14 @@ let rendererReady = false
 
 app.setAppUserModelId(APP_USER_MODEL_ID)
 
+// Chromium reads the GPU switch once, at startup, so this decision has to be
+// made before `whenReady()`. Toggling it in Settings only takes effect after a
+// restart — the panel says so.
+if (getSettings().lowMemoryMode) {
+  app.disableHardwareAcceleration()
+  console.log('[boot] low memory mode: hardware acceleration disabled')
+}
+
 function registerHotkey(): void {
   globalShortcut.unregisterAll()
   const { hotkey } = getSettings()

@@ -1,12 +1,19 @@
 import { IPC } from '../../shared/ipc'
 import type { VolumeState } from '../../shared/volume'
 import { getIslandWindow } from '../windows/island'
+import { wakeMedia } from './media'
 
 const POLL_INTERVAL_MS = 150
 /** Re-resolve the default endpoint every ~2 s so switching output devices is
  * picked up without needing IMMNotificationClient callbacks. */
 const REFRESH_EVERY_TICKS = 13
 const LEVEL_EPSILON = 0.001
+/** Peak above this counts as sound. Core Audio reports 0 for silence. */
+const AUDIBLE_PEAK = 0.01
+/** Four ticks (~600 ms) filters out notification dings and UI clicks. */
+const AUDIBLE_TICKS = 4
+/** ~2 s of silence re-arms the detector, so the next track wakes the bridge. */
+const SILENCE_TICKS = 13
 
 const CLSCTX_ALL = 23
 const POINTER_SIZE = process.arch === 'x64' || process.arch === 'arm64' ? 8 : 4
@@ -38,6 +45,10 @@ let timer: NodeJS.Timeout | null = null
 let reader: AudioReader | null = null
 let last: VolumeState | null = null
 let ticks = 0
+/** Audible-start detector: releases/rewakes the SMTC helper with playback. */
+let loudTicks = 0
+let silentTicks = 0
+let audible = false
 
 /** The beat watcher polls fast enough to feel like a 60 fps animation. */
 const BEAT_POLL_MS = 16
@@ -303,6 +314,25 @@ export function startVolumeWatcher(): void {
       next.muted !== last.muted
     last = next
     if (changed) emit(next)
+
+    // The SMTC helper is released after a long pause, so sound is the signal
+    // that a new track started. A sustained peak avoids waking it for a beep.
+    const peak = reader.peak()
+    if (!next.muted && peak !== null && peak > AUDIBLE_PEAK) {
+      loudTicks += 1
+      silentTicks = 0
+    } else {
+      loudTicks = 0
+      if (audible) silentTicks += 1
+    }
+    if (!audible && loudTicks >= AUDIBLE_TICKS) {
+      audible = true
+      silentTicks = 0
+      wakeMedia()
+    } else if (audible && silentTicks >= SILENCE_TICKS) {
+      audible = false
+      silentTicks = 0
+    }
   }
 
   tick()
@@ -316,6 +346,9 @@ export function stopVolumeWatcher(): void {
   reader = null
   last = null
   ticks = 0
+  loudTicks = 0
+  silentTicks = 0
+  audible = false
 }
 
 export function getVolumeState(): VolumeState | null {

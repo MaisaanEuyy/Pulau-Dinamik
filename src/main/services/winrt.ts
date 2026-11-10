@@ -83,7 +83,19 @@ function startHelper(): void {
   const host = POWERSHELL_HOSTS[hostIndex]
   const proc = spawn(
     host,
-    ['-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', path],
+    [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy',
+      'Bypass',
+      '-File',
+      path,
+      // Lets the helper notice a crashed host and exit instead of lingering as
+      // a ~30-80 MB orphan.
+      '-ParentPid',
+      String(process.pid)
+    ],
     { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] }
   )
   helper = proc

@@ -29,6 +29,13 @@ export interface Settings {
   features: FeatureFlags
   /** Light or dark island chrome. */
   theme: ThemeMode
+  /**
+   * Trade animation smoothness for memory: hardware acceleration is disabled at
+   * startup (software compositing, a much smaller GPU process) and the renderer
+   * may throttle while hidden. Read once before `app.whenReady()`, so a change
+   * needs a restart.
+   */
+  lowMemoryMode: boolean
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -39,5 +46,6 @@ export const DEFAULT_SETTINGS: Settings = {
   discordPresence: true,
   smileyInteractive: true,
   features: { ...DEFAULT_FEATURES },
-  theme: 'dark'
+  theme: 'dark',
+  lowMemoryMode: false
 }

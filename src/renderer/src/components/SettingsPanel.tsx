@@ -24,6 +24,7 @@ export function SettingsPanel({
   const theme = settings?.theme ?? 'dark'
   const launchAtLogin = settings?.launchAtLogin ?? false
   const smileyInteractive = settings?.smileyInteractive ?? true
+  const lowMemoryMode = settings?.lowMemoryMode ?? false
 
   return (
     <div className="settings-panel">
@@ -82,6 +83,22 @@ export function SettingsPanel({
           aria-label="Playful smiley"
           data-on={smileyInteractive}
           onClick={() => patch({ smileyInteractive: !smileyInteractive })}
+        />
+      </div>
+
+      <div className="settings-row">
+        <span className="settings-text">
+          <span className="settings-label">Low memory mode</span>
+          <span className="settings-hint">Software rendering, restart to apply</span>
+        </span>
+        <button
+          type="button"
+          className="settings-toggle"
+          role="switch"
+          aria-checked={lowMemoryMode}
+          aria-label="Low memory mode"
+          data-on={lowMemoryMode}
+          onClick={() => patch({ lowMemoryMode: !lowMemoryMode })}
         />
       </div>
 

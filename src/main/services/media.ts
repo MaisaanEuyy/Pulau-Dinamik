@@ -13,11 +13,21 @@ import {
 
 /** Keep the warm helper around for a while so reopening the panel is instant. */
 const IDLE_STOP_MS = 30_000
+/**
+ * The helper costs ~30-80 MB, so it is not worth keeping alive while nothing is
+ * playing. Once playback has been paused this long it is released; the media
+ * pill keeps showing the last track and the next sound wakes it again.
+ */
+const IDLE_RELEASE_MS = 90_000
 const FIRST_STATE_TIMEOUT_MS = 8_000
 
 let latest: MediaState | null = null
 let subscribers = 0
 let idleTimer: NodeJS.Timeout | null = null
+let pauseTimer: NodeJS.Timeout | null = null
+/** Click made while the helper was released; replayed on the first state. */
+let pendingCommand: MediaCommand | null = null
+let pendingTimer: NodeJS.Timeout | null = null
 let firstStateWaiters: Array<() => void> = []
 /** Whether this service currently holds the shared WinRT helper open. */
 let holding = false
@@ -102,6 +112,19 @@ onBridgeMessage((raw) => {
   if (!next) return
   const changed = !sameState(latest, next)
   latest = next
+  if (next.playing) cancelIdleRelease()
+  else scheduleIdleRelease()
+  // A click that arrived while the helper was cold waits for the manager to be
+  // ready; the first state line is that moment.
+  if (pendingCommand) {
+    const command = pendingCommand
+    pendingCommand = null
+    if (pendingTimer) {
+      clearTimeout(pendingTimer)
+      pendingTimer = null
+    }
+    sendBridge(command)
+  }
   for (const listener of listeners) listener(next)
   if (!changed) return
   emit()
@@ -122,11 +145,13 @@ function activate(): void {
   if (mediaOn) return
   mediaOn = true
   holding = true
+  cancelIdleRelease()
   retainBridge()
   sendBridge('media:on')
 }
 
 function deactivate(): void {
+  cancelIdleRelease()
   if (!mediaOn) return
   mediaOn = false
   latest = null
@@ -135,6 +160,33 @@ function deactivate(): void {
     holding = false
     releaseBridge(0)
   }
+}
+
+function cancelIdleRelease(): void {
+  if (!pauseTimer) return
+  clearTimeout(pauseTimer)
+  pauseTimer = null
+}
+
+/** Arms the release timer; Discord keeps the bridge alive on its own hold. */
+function scheduleIdleRelease(): void {
+  if (pauseTimer || alwaysOn) return
+  pauseTimer = setTimeout(() => {
+    pauseTimer = null
+    if (alwaysOn || latest?.playing) return
+    deactivate()
+  }, IDLE_RELEASE_MS)
+}
+
+/**
+ * Restarts SMTC polling after an idle release. Called when the audio meter hears
+ * a sound, so the pill updates within a second of the next track instead of
+ * waiting for the user to open the island.
+ */
+export function wakeMedia(): void {
+  if (mediaOn) return
+  ensureBridge()
+  activate()
 }
 
 /** Waits for the helper's first state line (cold start takes a moment). */
@@ -203,6 +255,7 @@ export function setMediaAlwaysOn(on: boolean): void {
   if (alwaysOn === on) return
   alwaysOn = on
   if (on) {
+    cancelIdleRelease()
     if (idleTimer) {
       clearTimeout(idleTimer)
       idleTimer = null
@@ -215,8 +268,19 @@ export function setMediaAlwaysOn(on: boolean): void {
 }
 
 export function sendMediaCommand(command: MediaCommand): void {
-  if (!mediaOn) return
   if (command !== 'toggle' && command !== 'next' && command !== 'previous') return
+  if (!mediaOn) {
+    // The helper may have been released while idle. Wake it and replay the
+    // click once the SMTC manager has handed back the session.
+    wakeMedia()
+    pendingCommand = command
+    if (pendingTimer) clearTimeout(pendingTimer)
+    pendingTimer = setTimeout(() => {
+      pendingTimer = null
+      pendingCommand = null
+    }, 8_000)
+    return
+  }
   sendBridge(command)
 }
 

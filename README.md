@@ -236,10 +236,28 @@ the top of the screen. Closing it only hides it — the app lives in the tray.
       Appearance, Start with Windows, Playful smiley and Toggle hotkey)
 - [x] Flags persist in `settings.json` under `features`; a settings file without
       the key loads with everything on
-- [x] Installer size does **not** shrink — Chromium is the bulk of it. The win is
-      runtime: on this machine the full set sits around 620 MB (Electron + two
-      helper processes) and Audio only shaves one helper (~75 MB) off that
+- [x] Installer size does **not** shrink — Chromium is the bulk of it, and the
+      Electron processes are not created or destroyed by a flag. The win is CPU
+      (timers, hooks, polling) plus a few MB of heap, not a large drop in Task
+      Manager. The helper process is the only piece that can disappear
 - [x] `npm run smoke` reports the active feature set alongside the usual checks
+
+**Revisions — memory work** ✅ (unreleased)
+
+- [x] `winrt.ps1` learned `toast:on` / `toast:off`: the 600 ms notification read
+      only runs while the Notifications module wants it, and the access consent
+      prompt no longer appears when the module is off
+- [x] `toasts.ts` rejects bridge toasts while the module is off, so nothing is
+      listed or sent over IPC after the switch
+- [x] The helper watches its parent (`-ParentPid`): a crashed or force-killed app
+      can no longer leave a 30–80 MB `powershell.exe` orphan behind
+- [x] SMTC polling is released after **90 s without playback** (skipped while
+      Discord holds the helper). The media pill keeps the last track; the next
+      sound wakes it through the Core Audio peak meter
+- [x] **Low memory mode** in Settings (restart to apply): hardware acceleration
+      off, so Chromium composites in software — the GPU process stays but drops
+      from ~147 MB private to ~16 MB here — and the hidden renderer may throttle
+      (`backgroundThrottling`)
 
 Next: per-app notification filters.
 
@@ -270,8 +288,8 @@ npm run dev
   Notifications, Beat, Discord) or trims the island with the **Audio only**
   preset — see **Modules** below.
 - The **Settings** section switches the island between dark and light, toggles
-  start-with-Windows and Playful smiley, and shows the current hotkey; the tray's
-  **Settings…** entry opens it from anywhere.
+  start-with-Windows, Playful smiley and Low memory mode, and shows the current
+  hotkey; the tray's **Settings…** entry opens it from anywhere.
 - `Ctrl+Alt+Space` (or the tray icon) toggles it; right-click the tray icon for
   display selection, the Modules submenu, launch-at-login and quit.
 
@@ -326,11 +344,16 @@ bridge.
   version (no `features` key) loads with everything on, so upgrading changes
   nothing until you touch a switch.
 - Installer size does **not** change — Chromium is the bulk of the package either
-  way. The saving shows up at runtime: the full set here is about 620 MB across
-  Electron plus two PowerShell helpers; Audio only drops the helper that only the
-  toast/system work needs (~75 MB), and keeps one shared with media.
-- Media and notifications share the same PowerShell helper, so switching off
-  Notifications alone only frees it when Media is not subscribed either.
+  way. The Electron process set (~370 MB here) is not created or destroyed by a
+  flag, so a switch mostly frees CPU and a few MB of heap.
+- Media and notifications share the same PowerShell helper (30–80 MB), so
+  switching off Notifications alone frees nothing while Media still needs it.
+  With both quiet the helper is released: after 90 s without playback, or 30 s
+  after the last hold is dropped.
+- **Low memory mode** in Settings trades smoothness for a bigger win: hardware
+  acceleration off drops the GPU process from ~147 MB private to ~16 MB on this
+  machine, and the renderer is allowed to throttle while hidden. It is read at
+  startup, so it needs a restart.
 
 ## Discord activity
 
@@ -407,7 +430,7 @@ npm run icons     # regenerate tray/app icons in ./resources
 npm run dist
 ```
 
-That writes `release/Dynamic Island KW Setup 0.1.3.exe` (NSIS, x64, ~116 MB).
+That writes `release/Dynamic Island KW Setup 0.1.4.exe` (NSIS, x64, ~116 MB).
 Run it and the app installs per-user into
 `%LOCALAPPDATA%\Programs\Dynamic Island KW` — no admin prompt — with a desktop
 shortcut and a Start Menu entry.

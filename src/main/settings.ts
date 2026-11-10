@@ -40,6 +40,8 @@ function sanitize(input: unknown): Settings {
   const theme = THEME_MODES.includes(raw.theme as ThemeMode)
     ? (raw.theme as ThemeMode)
     : DEFAULT_SETTINGS.theme
+  const lowMemoryMode =
+    typeof raw.lowMemoryMode === 'boolean' ? raw.lowMemoryMode : DEFAULT_SETTINGS.lowMemoryMode
   const features = sanitizeFeatures(raw.features)
 
   return {
@@ -50,15 +52,20 @@ function sanitize(input: unknown): Settings {
     discordPresence,
     smileyInteractive,
     features,
-    theme
+    theme,
+    lowMemoryMode
   }
 }
 
 export function getSettings(): Settings {
   if (!cache) {
     try {
-      cache = sanitize(JSON.parse(readFileSync(settingsFilePath(), 'utf8')))
-    } catch {
+      // Notepad and PowerShell write a UTF-8 BOM; `JSON.parse` chokes on it and
+      // the app would fall back to defaults, then overwrite the real file.
+      const text = readFileSync(settingsFilePath(), 'utf8').replace(/^\uFEFF/, '')
+      cache = sanitize(JSON.parse(text))
+    } catch (error) {
+      console.warn('[settings] could not read settings, using defaults', error)
       cache = { ...DEFAULT_SETTINGS, features: { ...DEFAULT_FEATURES } }
     }
   }

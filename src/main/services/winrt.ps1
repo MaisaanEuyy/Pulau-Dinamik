@@ -10,11 +10,16 @@
 #   {"type":"toast","key":"…","app":"Discord","texts":[…],"created":1699…}
 #   {"type":"state","active":true,"playing":true,…}
 #
-# stdin: `media:on` / `media:off` gates the media polling; while it is on the
-# plain commands `toggle`, `next`, `previous`, `play`, `pause` are accepted.
+# stdin: `media:on` / `media:off` gates the media polling; `toast:on` /
+# `toast:off` gates the notification listener. While media is on the plain
+# commands `toggle`, `next`, `previous`, `play`, `pause` are accepted.
 #
 # Nothing is written to disk and no notification content ever leaves the
-# machine. The helper exits when the main process closes its stdin pipe.
+# machine. The helper exits when the main process closes its stdin pipe, or when
+# the parent process it was started from is gone (a crash must not leave a
+# 30-80 MB orphan behind).
+param([int]$ParentPid = 0)
+
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 
@@ -40,29 +45,38 @@ function Await($operation, $type) {
 }
 
 # ---------------------------------------------------------------- notifications
-# A failure here must not take the media half down with it.
+# Lazy: requesting access can show a Windows consent dialog, so it must not run
+# when the Notifications module is off. `toast:on` triggers it once.
 $listener = $null
 $toastAccess = $false
-try {
-  [Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications.Management, ContentType = WindowsRuntime] | Out-Null
-  [Windows.UI.Notifications.NotificationKinds, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+$toastAccessChecked = $false
 
-  $listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
-  $access = $listener.GetAccessStatus()
+function Enable-Toasts {
+  if ($toastAccessChecked) { return }
+  $script:toastAccessChecked = $true
 
-  # First run: Windows asks the user once ("let this app read your notifications").
-  if ("$access" -ne 'Allowed') {
-    try {
-      $access = Await ($listener.RequestAccessAsync()) ([Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus])
-    } catch {
-      $access = 'Denied'
+  # A failure here must not take the media half down with it.
+  try {
+    [Windows.UI.Notifications.Management.UserNotificationListener, Windows.UI.Notifications.Management, ContentType = WindowsRuntime] | Out-Null
+    [Windows.UI.Notifications.NotificationKinds, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+
+    $script:listener = [Windows.UI.Notifications.Management.UserNotificationListener]::Current
+    $access = $script:listener.GetAccessStatus()
+
+    # First run: Windows asks the user once ("let this app read your notifications").
+    if ("$access" -ne 'Allowed') {
+      try {
+        $access = Await ($script:listener.RequestAccessAsync()) ([Windows.UI.Notifications.Management.UserNotificationListenerAccessStatus])
+      } catch {
+        $access = 'Denied'
+      }
     }
-  }
 
-  Send @{ type = 'access'; access = "$access" }
-  $toastAccess = ("$access" -eq 'Allowed')
-} catch {
-  Send @{ type = 'access'; access = 'Denied' }
+    Send @{ type = 'access'; access = "$access" }
+    $script:toastAccess = ("$access" -eq 'Allowed')
+  } catch {
+    Send @{ type = 'access'; access = 'Denied' }
+  }
 }
 
 # ----------------------------------------------------------------------- media
@@ -238,12 +252,27 @@ function Invoke-Command([string]$command) {
 $stdin = New-Object System.IO.StreamReader([Console]::OpenStandardInput())
 $pending = $stdin.ReadLineAsync()
 $mediaEnabled = $false
+# The listener costs a WinRT call every 600 ms, so it only runs while the main
+# process actually wants toasts (the Notifications module is on).
+$toastEnabled = $false
 $seen = @{}
 $seenOrder = New-Object System.Collections.Queue
 $ticks = 0
 $lastJson = ''
 $forceAt = 0
+$toastForceAt = 0
 $lastGc = 0
+$lastParentCheck = 0
+
+function Test-ParentAlive {
+  if ($ParentPid -le 0) { return $true }
+  try {
+    $null = [System.Diagnostics.Process]::GetProcessById($ParentPid)
+    return $true
+  } catch {
+    return $false
+  }
+}
 
 function Add-Seen([string]$key) {
   $seen[$key] = $true
@@ -276,6 +305,19 @@ try {
           $artCache.Clear()
           [GC]::Collect()
         }
+      } elseif ($command -eq 'toast:on') {
+        if (-not $toastEnabled) {
+          $toastEnabled = $true
+          Enable-Toasts
+          # Re-read once so a notification that arrived while the module was off
+          # still lands instead of waiting for the next 600 ms slot.
+          $toastForceAt = [Environment]::TickCount + 120
+        }
+      } elseif ($command -eq 'toast:off') {
+        if ($toastEnabled) {
+          $toastEnabled = $false
+          [GC]::Collect()
+        }
       } elseif ($mediaEnabled -and $command) {
         Invoke-Command $command
         $forceAt = [Environment]::TickCount + 120
@@ -285,8 +327,9 @@ try {
       $pending = $stdin.ReadLineAsync()
     }
 
-    # Notifications: ~600 ms between reads.
-    if ($toastAccess -and (($ticks % 12) -eq 0)) {
+    # Notifications: ~600 ms between reads, and only while the module wants them.
+    if ($toastEnabled -and $toastAccess -and ((($ticks % 12) -eq 0) -or ($toastForceAt -ne 0 -and [Environment]::TickCount -ge $toastForceAt))) {
+      $toastForceAt = 0
       try {
         $operation = $listener.GetNotificationsAsync([Windows.UI.Notifications.NotificationKinds]::Toast)
         $items = Await $operation ([System.Collections.Generic.IReadOnlyList[Windows.UI.Notifications.UserNotification]])
@@ -337,6 +380,13 @@ try {
         # Sleep/resume or a closed player can invalidate the manager.
         $script:manager = $null
       }
+    }
+
+    # Orphan guard: if the main process died (crash, force-kill) the stdin pipe
+    # may stay open, so poll the parent every ~2 s and exit on our own.
+    if (($ticks - $lastParentCheck) -ge 40) {
+      $lastParentCheck = $ticks
+      if (-not (Test-ParentAlive)) { break }
     }
 
     # Hand the CLR a chance to release heap once a minute.
