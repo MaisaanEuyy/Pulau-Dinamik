@@ -121,20 +121,28 @@ function startHelper(): void {
   const handleGone = (): void => {
     if (helper !== proc) return
     helper = null
+    // Drop the pipes so a late write cannot reach a dead child.
+    for (const stream of [proc.stdin, proc.stdout, proc.stderr]) stream.destroy()
     for (const handler of exitHandlers) handler()
   }
+
+  // A dead helper surfaces as EPIPE on its streams, not as a throw from the
+  // write call: without these listeners Node treats it as an uncaught
+  // exception and shows the "A JavaScript error occurred in the main process"
+  // dialog. Idle release and a force-quit timer both race the pipes.
+  proc.stdin.on('error', handleGone)
+  proc.stdout.on('error', handleGone)
+  proc.stderr.on('error', handleGone)
 
   proc.on('error', (error) => {
     console.warn(`[winrt] ${host} failed to start`, error)
     if (helper !== proc) return
-    helper = null
+    handleGone()
     if (hostIndex < POWERSHELL_HOSTS.length - 1) {
       // A missing or blocked 32-bit host: retry with the default one.
       hostIndex += 1
       startHelper()
-      return
     }
-    for (const handler of exitHandlers) handler()
   })
 
   proc.on('exit', (code) => {
@@ -174,11 +182,14 @@ export function releaseBridge(idleMs: number): void {
 /** Writes a command line to the helper. Returns false when it is not running. */
 export function sendBridge(command: string): boolean {
   if (!helper) return false
+  // The exit event and the pipe error arrive a tick apart; the writable check
+  // covers that window so a released helper never gets a buffered write.
+  if (helper.stdin.destroyed || !helper.stdin.writable) return false
   try {
     helper.stdin.write(`${command}\n`)
     return true
   } catch {
-    // Broken pipe: the exit handler will clean up.
+    // Broken pipe: the error handler on the stream cleans up.
     return false
   }
 }
@@ -213,10 +224,14 @@ export function stopBridge(): void {
   const proc = helper
   helper = null
   if (!proc) return
-  try {
-    proc.stdin.end()
-  } catch {
-    // Already gone.
+  // Destroy the pipes first: `kill()` closes the child end, and any byte still
+  // queued in stdin would otherwise surface as EPIPE a tick later.
+  for (const stream of [proc.stdin, proc.stdout, proc.stderr]) {
+    try {
+      stream.destroy()
+    } catch {
+      // Already gone.
+    }
   }
   try {
     proc.kill()
